@@ -47,6 +47,7 @@ pip-tools==1.7                  # generating requirements.txt from requirements.
 django-taggit==0.20.2           # tagging registrars
 ua-parser==0.7.1                # user agent parsing to detect Safari browser for playbacks
 django_webpack_loader==0.3.3    # frontend assets building
+warc==0.2.1
 -e git://github.com/rebeccacremona/createsend-python.git@7cd8be21f89fa7bb61dafb31da9ad4a64058bf5b#egg=createsend-python
 tqdm==4.11.2                    # progress bar in dev fab tasks
 -e git://github.com/anastasia/htmldiff.git@master#egg=htmldiff  # diffing html utils
