@@ -38,7 +38,7 @@ def capture_create(request, old_guid):
     # old_archive = Link.objects.get(guid=guid)
 
     new_guid = response.json().get('guid')
-    compare = Compare(old_guid=old_guid, guid=new_guid, created_by=old_archive.created_by)
+    compare = Compare(original_guid=old_guid, guid=new_guid, created_by=old_archive.created_by)
     compare.save()
     # old_archive = Link.objects.get(guid="AA3S-SQ55")
     # new_archive = Link.objects.get(guid=new_guid)
@@ -118,7 +118,7 @@ def list(request, old_guid):
         'protocol': protocol,
     }
 
-    return render(request, 'list.hcomtml', context)
+    return render(request, 'list.html', context)
 
 def get_resource_list(request, old_guid, new_guid):
     old_archive = Link.objects.get(guid=old_guid)
