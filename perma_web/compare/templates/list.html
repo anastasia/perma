@@ -12,6 +12,10 @@
 {{ old_archive.submitted_description | archive_description:''  }}
 {% endblock %}
 
+{% block styles %}
+  {% render_bundle 'compare-warcs-styles' 'css' %}
+{% endblock %}
+
 {% block meta-head %}
   <meta name="robots" content="noindex, noimageindex">
 
@@ -28,47 +32,38 @@
   <meta name="twitter:image" content="{{ protocol }}{{ request.get_host }}{{ STATIC_URL }}img/sharing/blue_logo.png">
 {% endblock %}
 
-{% block styles %}
-  {% render_bundle 'compare-warcs' 'css' %}
-{% endblock %}
-
 {% block header %}
   {% include 'includes/header.html' %}
 {% endblock %}
 
-{% block mainContent %}
 
+{% block mainContent %}
 <div style="display: block;" class="capture-wrapper">
-  <div class="container cont-reading cont-fixed">
-    <div class="row">
-      <div class="col-sm-8">
-        <p>
-          Original Perma.cc record:
-          <a href="{{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}">
-            {{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}
-          </a>
-        </p>
+  <iframe id="left_frame" frameBorder="0"  src="{{ old_archive_capture.playback_url_with_access_token }}"
+          {% if capture.use_sandbox %}sandbox="allow-forms allow-scripts allow-top-navigation allow-same-origin" {% endif %}>
+  </iframe>
+  <div class="col-md-6 gray-container">
+
+      <a class="btn btn-sm btn-blue" href="{{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}/compare/create">
+         Create a new comparison
+      </a>
+      {% if archives %}
+
         <p>
         Original URL: <a href="{{ old_archive.submitted_url }}">{{ old_archive.submitted_url }}</a>
         </p>
         <ul class="compare-list">
-          <li>
-            <a type="button" class="blue-button btn-sm" href="{{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}/compare/create">
-              Create a new comparison
-            </a>
-          </li>
           {% for archive in archives %}
-          <li>
+          <li class="comparison-url">
              <a href="{{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}/compare/{{ archive.guid }}">
                {{ protocol }}{{ request.get_host }}/{{ old_archive.guid }}/compare/{{ archive.guid }}
              </a>
           </li>
+          {% endfor %}
         </ul>
-      </div>
-    </div>
- </div>
+      {% endif %}
+  </div>
 </div>
-{% endfor %}
 
 
 {% endblock %}
@@ -77,8 +72,6 @@
   <script>
     var archive = { guid: "{{ old_archive.guid }}" };
     var current_user = {id:"{{request.user.id}}"};
-    var simhash_distance = "{{simhash_distance}}"
-    // var test_html = "{{test_html}}"
   </script>
 
   {% if request.user.is_authenticated %}

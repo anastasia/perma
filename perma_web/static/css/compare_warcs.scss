@@ -1,12 +1,129 @@
-#left_frame {
-    width: calc(50% - 4px);
-}
-#right_frame {
-    width: calc(50% - 4px);
+
+@import "_perma-imports.scss";
+//@import style-responsive;
+header {
+  background-color: black;
+  border-bottom: none;
+  .secondary-segment {
+    background: white;
+    color: $color-blue;
+    padding: 10px 0px;
+    width: 100%;
+    border-bottom: $color-blue 2px !important;
+    .content {
+      text-align: center;
+    }
+    .timestamp {
+      font-weight: 500;
+    }
+  }
+
 }
 #left_frame,
 #right_frame {
   float: left;
-  height: 100%;
+  min-height: 100%;
   resize: both;
+}
+
+iframe {
+  margin: 0px;
+  padding: 0px;
+  //border: none;
+}
+
+#left_frame {
+  width: calc(50% - 4px);
+}
+
+#right_frame {
+    width: calc(50% - 4px);
+}
+
+#main-content {
+  padding: 0px;
+}
+
+.comparison-url {
+  list-style: none;
+}
+
+.gray-container {
+  min-height: 100%;
+  background: $color-trans-whispergray;
+}
+
+.capture-wrapper {
+  min-height: 100%;
+}
+
+.btn-blue {
+  background-color: $color-blue;
+}
+
+.btn-circle {
+  width: 30px;
+  height: 30px;
+  text-align: center;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 1.428571429;
+  border-radius: 15px;
+  &:hover {
+    padding: 0px;
+    color: black !important;
+  }
+  &.color-added {
+    color: $color-green;
+    border-color: $color-green;
+  }
+  &.color-missing {
+    color: $color-orange;
+    border-color: $color-orange;
+  }
+  &.color-modified {
+    color: $color-highlight;
+    border-color: $color-highlight;
+    &:hover {
+      background: $color-highlight;
+    }
+  }
+  &.color-total {
+    color: $color-background;
+    border-color: $color-background;
+    &:hover {
+      background: $color-background;
+    }
+  }
+}
+
+
+.resource-row {
+
+}
+
+table, th, td {
+  border: 1px solid $color-trans-whispergray;
+}
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  tr {
+    margin: 10px;
+  }
+  th {
+    padding: 15px 0px;
+  }
+  td {
+    padding: 10px 20px;
+    &.resource-modified {
+      background: $color-highlight;
+    }
+    &.resource-missing {
+      background: $color-orange;
+    }
+    &.resource-added {
+      background: $color-green;
+    }
+  }
 }

@@ -10,7 +10,7 @@ module.exports = {
   entry: {
     'single-link': ['./static/js/single-link.module'],
     'single-link-styles':'./static/css/style-responsive-archive.scss',
-    'compare-warcs':'./static/css/compare_warcs.scss',
+    'compare-warcs-styles':'./static/css/compare_warcs.scss',
 
     'global': './static/js/global',
     'global-styles': [
@@ -27,44 +27,13 @@ module.exports = {
     'search': './static/js/search.module',
     'stats': './static/js/stats',
     'admin-stats': './static/js/admin-stats',
-    'compare': './static/js/compare',
+    'compare-warcs':'./static/js/compare-warcs.js',
   },
 
   output: {
     path: path.resolve('./static/bundles/'),
     filename: "[name].js",  // "[name]-[hash].js",  // let hashes be handled by django
   },
-
-  plugins: [
-    // write out a list of generated files, so Django can find them
-    // Allow overriding via env var for tests.
-    new BundleTracker({filename: process.env.BUNDLE_TRACKER_PATH || './webpack-stats.json'}),
-
-    new webpack.ProvidePlugin({
-      // Automatically detect jQuery and $ as free var in modules and inject the jquery library
-      jQuery: "jquery", $: "jquery", "window.jQuery": "jquery"
-    }),
-
-    /*
-     We want to include global.js on just about every page, and then some pages have a second js file included as well.
-     We don't want a redundant webpack runtime added to the second js files.
-     Using CommonsChunkPlugin with `minChunks: Infinity` does what we want -- the runtime just goes into the first file,
-     but nothing gets moved around.
-     */
-    new webpack.optimize.CommonsChunkPlugin({
-      name: "global",
-      chunks: ["global", "create", "single-link-permissions", "map", "create", "link-delete-confirm", "developer-docs", "search", "stats", "admin-stats"],
-      minChunks: Infinity,
-    }),
-
-    new ExtractTextPlugin("[name].css"),
-
-    // make sure sub-dependencies aren't included twice
-    new webpack.optimize.DedupePlugin(),
-
-    // uglify
-    // new webpack.optimize.UglifyJsPlugin()
-  ],
 
   module: {
     loaders: [
@@ -108,6 +77,37 @@ module.exports = {
       }
     ],
   },
+
+  plugins: [
+    // write out a list of generated files, so Django can find them
+    // Allow overriding via env var for tests.
+    new BundleTracker({filename: process.env.BUNDLE_TRACKER_PATH || './webpack-stats.json'}),
+
+    new webpack.ProvidePlugin({
+      // Automatically detect jQuery and $ as free var in modules and inject the jquery library
+      jQuery: "jquery", $: "jquery", "window.jQuery": "jquery"
+    }),
+
+    /*
+     We want to include global.js on just about every page, and then some pages have a second js file included as well.
+     We don't want a redundant webpack runtime added to the second js files.
+     Using CommonsChunkPlugin with `minChunks: Infinity` does what we want -- the runtime just goes into the first file,
+     but nothing gets moved around.
+     */
+    new webpack.optimize.CommonsChunkPlugin({
+      name: "global",
+      chunks: ["global", "create", "single-link-permissions", "map", "create", "link-delete-confirm", "developer-docs", "search", "stats", "admin-stats", "compare-warcs"],
+      minChunks: Infinity,
+    }),
+
+    new ExtractTextPlugin("[name].css"),
+
+    // make sure sub-dependencies aren't included twice
+    new webpack.optimize.DedupePlugin(),
+
+    // uglify
+    // new webpack.optimize.UglifyJsPlugin()
+  ],
 
   resolve: {
     modulesDirectories: ['node_modules'],

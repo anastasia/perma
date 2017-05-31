@@ -16,7 +16,7 @@ import compare.utils as utils
 from perma.models import Link
 from htmldiff import diff
 from htmldiff import settings as diff_settings
-from warc_compare import WARCCompare
+from warc_compare import WARCCompare, utils as wc_utils
 
 @login_required
 def capture_create(request, old_guid):
@@ -81,15 +81,36 @@ def capture_compare(request, old_guid, new_guid):
 
             deleted, inserted, combined = diff.text_diff(rewritten_html_one, rewritten_html_two)
 
+            # TODO: change all '/' in url to '_' to save
+
             utils.write_to_static(deleted, 'deleted.html', old_guid, new_guid)
             utils.write_to_static(inserted, 'inserted.html', old_guid, new_guid)
             utils.write_to_static(combined, 'combined.html', old_guid, new_guid)
-        resource_count = {
-            'missing': len(wc.resources['missing']),
-            'added': len(wc.resources['added']),
-            'modified': len(wc.resources['modified']),
-            'unchanged': len(wc.resources['unchanged']),
-        }
+
+        total_count, unchanged_count, missing_count, added_count, modified_count = wc.count_resources()
+        resources = []
+        for status in wc.resources:
+            for content_type in wc.resources[status]:
+                if "javascript" in content_type:
+                    content_type_str = "script"
+                elif "image" in content_type:
+                    content_type_str = "img"
+                elif "html" in content_type:
+                    content_type_str = "html"
+                else:
+                    content_type_str = content_type
+                for url in wc.resources[status][content_type]:
+                    resource = {
+                        'url': url,
+                        'content_type': content_type_str,
+                        'status': status,
+                    }
+                    if url == old_archive.submitted_url:
+                        resources = [resource] + resources
+                    else:
+                        resources.append(resource)
+
+
         context = {
             'old_archive': old_archive,
             'new_archive': new_archive,
@@ -98,7 +119,14 @@ def capture_compare(request, old_guid, new_guid):
             'this_page': 'comparison',
             'link_url': settings.HOST + '/' + old_archive.guid,
             'protocol': protocol,
-            'resource_count': resource_count,
+            'resources': resources,
+            'resource_count': {
+                'total': total_count[1],
+                'unchanged': unchanged_count,
+                'missing': missing_count,
+                'added': added_count,
+                'modified': modified_count,
+            },
         }
 
         return render(request, 'comparison.html', context)
