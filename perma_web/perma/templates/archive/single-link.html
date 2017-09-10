@@ -1,5 +1,5 @@
 {% extends "archive/base-archive-responsive.html" %}
-{% load local_datetime as_json archive_description %}
+{% load local_datetime archive_description %}
 {% load render_bundle from webpack_loader %}
 
 {% block header_scripts %}
@@ -189,6 +189,7 @@
         {% endcomment %}
       </div>
       <div class="tray-actions col-xs-12">
+          <a href="{% url 'single_linky' guid=link.guid %}?type=warc_download" role="button" class="btn btn-ui-small btn-dashboard" title="download">Download Archive</a>
         {% if not can_edit %}
           <a href="{% url 'contact' %}?flag={{link.guid}}" role="button" class="btn btn-ui-small btn-dashboard flag" title="Flag as inappropriate">Flag<span class="_verbose"> as inappropriate</span></a>
         {% endif %}
@@ -208,6 +209,13 @@
           {% endif %}
         {% endif %}
       </div>
+
+      {# In IE, our tray shows behind iframes containing PDFs. Adding a blank iframe at z-index -1 fixes the problem. Via https://stackoverflow.com/a/12977151/307769 #}
+      <script type="text/javascript">
+        if(/MSIE \d|Trident.*rv:/.test(navigator.userAgent)) // only add this useless iframe in IE: https://stackoverflow.com/a/29988202/307769
+            document.write('<iframe src="about:blank" style="border: none;position: absolute;top: 0;left: 0;height: 100%;width: 100%;z-index: -1;"></iframe><![endif]-->');
+      </script>
+
     </div>
 
     {% if can_view and link.is_private %}
@@ -231,6 +239,7 @@
     {% endif %}
 
   </header>
+
 {% endblock %}
 
 {% block mainContent %}
@@ -238,7 +247,11 @@
   {% if link.user_deleted %}
     {% include "archive/deleted.html" %}
   {% elif can_view %}
-    {% include "archive/iframe.html" %}
+    {% if redirect_to_download_view %}
+      {% include "archive/download_to_view_pdf.html" %}
+    {% else %}
+      {% include "archive/iframe.html" %}
+    {% endif %}
   {% elif link.is_private %}
     {% include "archive/dark-archive.html" %}
   {% endif %}

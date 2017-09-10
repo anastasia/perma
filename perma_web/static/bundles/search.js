@@ -369,7 +369,7 @@ webpackJsonp([9],{
 /***/ 80:
 /***/ function(module, exports, __webpack_require__) {
 
-	exports.f = __webpack_require__(1162);
+	exports.f = __webpack_require__(356);
 
 /***/ },
 
@@ -398,28 +398,28 @@ webpackJsonp([9],{
 	// ECMAScript 6 symbols shim
 	var global         = __webpack_require__(40)
 	  , has            = __webpack_require__(54)
-	  , DESCRIPTORS    = __webpack_require__(1159)
+	  , DESCRIPTORS    = __webpack_require__(353)
 	  , $export        = __webpack_require__(39)
 	  , redefine       = __webpack_require__(53)
 	  , META           = __webpack_require__(84).KEY
 	  , $fails         = __webpack_require__(49)
-	  , shared         = __webpack_require__(1153)
+	  , shared         = __webpack_require__(347)
 	  , setToStringTag = __webpack_require__(72)
 	  , uid            = __webpack_require__(69)
-	  , wks            = __webpack_require__(1162)
+	  , wks            = __webpack_require__(356)
 	  , wksExt         = __webpack_require__(80)
 	  , wksDefine      = __webpack_require__(85)
 	  , keyOf          = __webpack_require__(86)
 	  , enumKeys       = __webpack_require__(87)
 	  , isArray        = __webpack_require__(90)
-	  , anObject       = __webpack_require__(1157)
+	  , anObject       = __webpack_require__(351)
 	  , toIObject      = __webpack_require__(61)
-	  , toPrimitive    = __webpack_require__(1161)
+	  , toPrimitive    = __webpack_require__(355)
 	  , createDesc     = __webpack_require__(52)
 	  , _create        = __webpack_require__(57)
 	  , gOPNExt        = __webpack_require__(91)
 	  , $GOPD          = __webpack_require__(93)
-	  , $DP            = __webpack_require__(1156)
+	  , $DP            = __webpack_require__(350)
 	  , $keys          = __webpack_require__(59)
 	  , gOPD           = $GOPD.f
 	  , dP             = $DP.f
@@ -622,7 +622,7 @@ webpackJsonp([9],{
 	});
 	
 	// 19.4.3.4 Symbol.prototype[@@toPrimitive](hint)
-	$Symbol[PROTOTYPE][TO_PRIMITIVE] || __webpack_require__(1155)($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
+	$Symbol[PROTOTYPE][TO_PRIMITIVE] || __webpack_require__(349)($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
 	// 19.4.3.5 Symbol.prototype[@@toStringTag]
 	setToStringTag($Symbol, 'Symbol');
 	// 20.2.1.9 Math[@@toStringTag]
@@ -638,7 +638,7 @@ webpackJsonp([9],{
 	var META     = __webpack_require__(69)('meta')
 	  , isObject = __webpack_require__(46)
 	  , has      = __webpack_require__(54)
-	  , setDesc  = __webpack_require__(1156).f
+	  , setDesc  = __webpack_require__(350).f
 	  , id       = 0;
 	var isExtensible = Object.isExtensible || function(){
 	  return true;
@@ -698,7 +698,7 @@ webpackJsonp([9],{
 	  , core           = __webpack_require__(29)
 	  , LIBRARY        = __webpack_require__(38)
 	  , wksExt         = __webpack_require__(80)
-	  , defineProperty = __webpack_require__(1156).f;
+	  , defineProperty = __webpack_require__(350).f;
 	module.exports = function(name){
 	  var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
 	  if(name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, {value: wksExt.f(name)});
@@ -813,12 +813,12 @@ webpackJsonp([9],{
 	var pIE            = __webpack_require__(89)
 	  , createDesc     = __webpack_require__(52)
 	  , toIObject      = __webpack_require__(61)
-	  , toPrimitive    = __webpack_require__(1161)
+	  , toPrimitive    = __webpack_require__(355)
 	  , has            = __webpack_require__(54)
-	  , IE8_DOM_DEFINE = __webpack_require__(1158)
+	  , IE8_DOM_DEFINE = __webpack_require__(352)
 	  , gOPD           = Object.getOwnPropertyDescriptor;
 	
-	exports.f = __webpack_require__(1159) ? gOPD : function getOwnPropertyDescriptor(O, P){
+	exports.f = __webpack_require__(353) ? gOPD : function getOwnPropertyDescriptor(O, P){
 	  O = toIObject(O);
 	  P = toPrimitive(P, true);
 	  if(IE8_DOM_DEFINE)try {
@@ -889,9 +889,19 @@ webpackJsonp([9],{
 	  if (Date.now() < Date.parse(link.archive_timestamp)) {
 	    link.delete_available = true;
 	  }
-	  if (!link.captures.some(function (c) {
-	    return c.role == "primary" && c.status == "success" || c.role == "screenshot" && c.role == "success";
-	  })) {
+	  // mark the capture as failed if both the primary and the screenshot capture failed.
+	  // (ignore if the favicon capture failed)
+	  var primary_failed = false;
+	  var screenshot_failed = false;
+	  link.captures.forEach(function (c) {
+	    if (c.role == "primary" && c.status == "failed") {
+	      primary_failed = true;
+	    }
+	    if (c.role == "screenshot" && c.status == "failed") {
+	      screenshot_failed = true;
+	    }
+	  });
+	  if (primary_failed && screenshot_failed) {
 	    link.is_failed = true;
 	  };
 	  return link;

@@ -1,7 +1,6 @@
 import Cookie
 import StringIO
 from collections import defaultdict
-from contextlib import contextmanager
 import os
 import random
 import threading
@@ -9,6 +8,7 @@ import re
 from urlparse import urljoin
 import traceback
 import requests
+from django.db import close_old_connections
 from django.template import loader
 from django.test import RequestFactory
 from surt import surt
@@ -58,20 +58,6 @@ GUID_REGEX = r'(%s|%s)' % (oldstyle_guid_regex, newstyle_guid_regex)
 WARC_STORAGE_PATH = os.path.join(settings.MEDIA_ROOT, settings.WARC_STORAGE_DIR)
 thread_local_data = threading.local()
 
-@contextmanager
-def close_database_connection():
-    """
-        Normally Django closes its connections at the end of the request.
-        Here there's no Django request, so if we use the DB we close it manually.
-        See http://stackoverflow.com/a/1346401/307769
-    """
-    try:
-        yield
-    finally:
-        if settings.TESTING:
-            return
-        from django.db import connection
-        connection.close()
 
 def get_archive_path():
     # Get root storage location for warcs, based on default_storage.
@@ -81,7 +67,7 @@ def get_archive_path():
     try:
         archive_path = 'file://' + default_storage.path('') + '/'
     except NotImplementedError:
-        archive_path = default_storage.url('/')
+        archive_path = default_storage.url('')
         archive_path = archive_path.split('?', 1)[0]  # remove query params
 
     # must be ascii, for some reason, else you'll get
@@ -89,6 +75,14 @@ def get_archive_path():
     return archive_path.encode('ascii', 'ignore')
 
 def raise_not_found(url):
+    if not settings.LOG_PLAYBACK_404:
+        # use a custom error to skip pywb printing of exceptions
+        raise CustomTemplateException(status='404 Not Found',
+                                      template_path='archive/archive-error.html',
+                                      template_kwargs={
+                                          'content_host': settings.WARC_HOST,
+                                          'err_url': url
+                                      })
     raise NotFoundException('No Captures found for: %s' % url, url=url)
 
 
@@ -138,7 +132,7 @@ class PermaRoute(archivalrouter.Route):
         cached_cdx = django_cache.get(cache_key)
         redirect_matcher = re.compile(r' 30[1-7] ')
         if cached_cdx is None or not wbrequest.wb_url:
-            with opbeat_trace('cdx-cache-miss'), close_database_connection():
+            with opbeat_trace('cdx-cache-miss'):
                 try:
                     # This will filter out links that have user_deleted=True
                     link = Link.objects.get(guid=guid)
@@ -148,7 +142,7 @@ class PermaRoute(archivalrouter.Route):
                 if not wbrequest.wb_url:
                     # This is a bare request to /warc/1234-5678/ -- return so we can send a forward to submitted_url in PermaGUIDHandler.
                     wbrequest.custom_params['guid'] = guid
-                    wbrequest.custom_params['url'] = link.safe_url
+                    wbrequest.custom_params['url'] = link.ascii_safe_url
                     return
 
                 # Legacy archives didn't generate CDXLines during
@@ -270,11 +264,14 @@ class PermaHandler(WBHandler):
         return replay_view
 
     def handle_request(self, wbrequest):
-        # include wbrequest in thread locals for later access
-        wbrequest.mirror_name = None
-        thread_local_data.wbrequest = wbrequest
-        return super(PermaHandler, self).handle_request(wbrequest)
-
+        try:
+            # include wbrequest in thread locals for later access
+            wbrequest.mirror_name = None
+            thread_local_data.wbrequest = wbrequest
+            return super(PermaHandler, self).handle_request(wbrequest)
+        finally:
+            # close any database connections that should be closed -- django does this at end of each request
+            close_old_connections()
 
 class PermaGUIDHandler(PermaHandler):
     def __init__(self, query_handler, config=None):
@@ -435,7 +432,7 @@ class CachedLoader(BlockLoader):
                 # If url wasn't in LOCKSS yet or LOCKSS is disabled, fetch from local storage using super()
                 if file_contents is None:
                     file_contents = super(CachedLoader, self).load(url).read()
-                    logging.info("Got content from local disk")
+                    logging.debug("Got content from local disk")
 
                 # cache file contents
                 # use a short timeout so large warcs don't evict everything else in the cache
@@ -474,6 +471,8 @@ def new_rewrite(self, status_headers, urlrewriter, cookie_rewriter):
             result.status_headers.headers.append((self.header_prefix + 'Content-Disposition', content_disposition))
     return result
 HeaderRewriter.rewrite = new_rewrite
+
+
 
 
 # =================================================================

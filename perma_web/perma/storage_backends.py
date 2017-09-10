@@ -8,9 +8,12 @@ from django.conf import settings
 import django.dispatch
 from django.utils.module_loading import import_string
 
-from storages.backends.s3boto import S3BotoStorage
+from storages.backends.s3boto3 import S3Boto3Storage
 from storages.backends.sftpstorage import SFTPStorage
 from whitenoise.storage import CompressedManifestStaticFilesStorage
+
+# used only for suppressing INFO logging in S3Boto3Storage
+import logging
 
 
 file_saved = django.dispatch.Signal(providing_args=["instance", "path", "overwrite"])
@@ -81,8 +84,11 @@ class FileSystemMediaStorage(BaseMediaStorage, DjangoFileSystemStorage):
     pass
 
 
-class S3MediaStorage(BaseMediaStorage, S3BotoStorage):
+class S3MediaStorage(BaseMediaStorage, S3Boto3Storage):
     location = settings.MEDIA_ROOT
+    # suppress boto3's INFO logging per https://github.com/boto/boto3/issues/521
+    logging.getLogger('boto3').setLevel(logging.WARNING)
+    logging.getLogger('botocore').setLevel(logging.WARNING)
 
 
 class SFTPMediaStorage(BaseMediaStorage, SFTPStorage):

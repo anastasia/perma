@@ -1,20 +1,18 @@
 from wsgiref.util import FileWrapper
-import logging
-from time import mktime
+import logging, itertools, json
+from collections import OrderedDict
 
-from django.contrib.auth.views import redirect_to_login
 from ratelimit.decorators import ratelimit
 from datetime import timedelta
-from wsgiref.handlers import format_date_time
-from ua_parser import user_agent_parser
 from urllib import urlencode
 
+from django.contrib.auth.views import redirect_to_login
 from django.core.files.storage import default_storage
 from django.forms import widgets
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, Http404
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponseRedirect, HttpResponsePermanentRedirect, StreamingHttpResponse
-from django.core.urlresolvers import reverse
+from django.core.urlresolvers import reverse, NoReverseMatch
 from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -23,8 +21,10 @@ from django.views.decorators.cache import cache_control
 
 from ..models import Link, Registrar, Organization, LinkUser
 from ..forms import ContactForm
-from ..utils import if_anonymous, ratelimit_ip_key
+from ..utils import if_anonymous, ratelimit_ip_key, redirect_to_download, parse_user_agent, protocol
 from ..email import send_admin_email, send_user_email_copy_admins
+
+from warcio.warcwriter import BufferWARCWriter
 
 logger = logging.getLogger(__name__)
 valid_serve_types = ['image', 'warc_download']
@@ -106,6 +106,7 @@ def single_linky(request, guid):
     """
     Given a Perma ID, serve it up.
     """
+    raw_user_agent = request.META.get('HTTP_USER_AGENT', '')
 
     # Create a canonical version of guid (non-alphanumerics removed, hyphens every 4 characters, uppercase),
     # and forward to that if it's different from current guid.
@@ -131,10 +132,57 @@ def single_linky(request, guid):
 
     # serve raw WARC
     if serve_type == 'warc_download':
-        if request.user.can_view(link):
-            response = StreamingHttpResponse(FileWrapper(default_storage.open(link.warc_storage_file()), 1024 * 8),
-                                             content_type="application/gzip")
-            response['Content-Disposition'] = "attachment; filename=%s.warc.gz" % link.guid
+        if link.user_deleted:
+            raise Http404
+        elif request.user.can_view(link):
+
+            def make_warcinfo(filename, guid, coll_title, coll_desc, rec_title, pages):
+                # #
+                # Thank you! Rhizome/WebRecorder.io/Ilya Kreymer
+                # #
+
+                coll_metadata = {'type': 'collection',
+                                 'title': coll_title,
+                                 'desc': coll_desc
+                                }
+
+                rec_metadata = {'type': 'recording',
+                                'title': rec_title,
+                                'pages': pages}
+
+                # Coll info
+                writer = BufferWARCWriter(gzip=True)
+                params = OrderedDict([('operator', 'Perma.cc download'),
+                                      ('Perma-GUID', guid),
+                                      ('format', 'WARC File Format 1.0'),
+                                      ('json-metadata', json.dumps(coll_metadata))])
+
+                record = writer.create_warcinfo_record(filename, params)
+                writer.write_record(record)
+
+                # Rec Info
+                params['json-metadata'] = json.dumps(rec_metadata)
+
+                record = writer.create_warcinfo_record(filename, params)
+                writer.write_record(record)
+
+                return writer.get_contents()
+
+
+            filename = "%s.warc.gz" % link.guid
+
+            warcinfo = make_warcinfo( filename = filename,
+                         guid = link.guid,
+                         coll_title = 'Perma Archive, %s' % link.submitted_title,
+                         coll_desc = link.submitted_description,
+                         rec_title = 'Perma Archive of %s' % link.submitted_title,
+                         pages= [{'title': link.submitted_title, 'url': link.submitted_url}])
+
+            warc_stream = FileWrapper(default_storage.open(link.warc_storage_file()))
+            warc_stream = itertools.chain([warcinfo], warc_stream)
+            response = StreamingHttpResponse(warc_stream, content_type="application/gzip")
+            response['Content-Disposition'] = 'attachment; filename="%s"' % filename
+
             return response
         else:
             return HttpResponseForbidden('Private archive.')
@@ -145,7 +193,7 @@ def single_linky(request, guid):
     # safari=1 in the query string indicates that the redirect has already happened.
     # See http://labs.fundbox.com/third-party-cookies-with-ie-at-2am/
     if link.is_private and not request.GET.get('safari'):
-        user_agent = user_agent_parser.ParseUserAgent(request.META.get('HTTP_USER_AGENT', ''))
+        user_agent = parse_user_agent(raw_user_agent)
         if user_agent.get('family') == 'Safari':
             return redirect_to_login(request.build_absolute_uri(),
                                      "//%s%s" % (settings.WARC_HOST, reverse('user_management_set_safari_cookie')))
@@ -160,6 +208,16 @@ def single_linky(request, guid):
         if (not capture or capture.status != 'success') and link.screenshot_capture and link.screenshot_capture.status == 'success':
             return HttpResponseRedirect(reverse('single_linky', args=[guid])+"?type=image")
 
+    try:
+        capture_mime_type = capture.mime_type()
+    except AttributeError:
+        # If capture is deleted, then mime type does not exist. Catch error.
+        capture_mime_type = None
+
+    # Special handling for mobile pdf viewing because it can be buggy
+    # Redirecting to a download page if on mobile
+    redirect_to_download_view = redirect_to_download(capture_mime_type, raw_user_agent)
+
     # If this record was just created by the current user, show them a new record message
     new_record = request.user.is_authenticated() and link.created_by_id == request.user.id and not link.user_deleted \
                  and link.creation_timestamp > timezone.now() - timedelta(seconds=300)
@@ -167,13 +225,13 @@ def single_linky(request, guid):
     # Provide the max upload size, in case the upload form is used
     max_size = settings.MAX_ARCHIVE_FILE_SIZE / 1024 / 1024
 
-    protocol = "https://" if settings.SECURE_SSL_REDIRECT else "http://"
-
     if not link.submitted_description:
         link.submitted_description = "This is an archive of %s from %s" % (link.submitted_url, link.creation_timestamp.strftime("%A %d, %B %Y"))
 
     context = {
         'link': link,
+        'redirect_to_download_view': redirect_to_download_view,
+        'mime_type': capture_mime_type,
         'can_view': request.user.can_view(link),
         'can_edit': request.user.can_edit(link),
         'can_delete': request.user.can_delete(link),
@@ -184,20 +242,18 @@ def single_linky(request, guid):
         'this_page': 'single_link',
         'max_size': max_size,
         'link_url': settings.HOST + '/' + link.guid,
-        'protocol': protocol,
+        'protocol': protocol(),
     }
 
     response = render(request, 'archive/single-link.html', context)
-    date_header = format_date_time(mktime(link.creation_timestamp.timetuple()))
-    link_memento  = protocol + settings.HOST + '/' + link.guid
-    link_timegate = protocol + settings.WARC_HOST + settings.TIMEGATE_WARC_ROUTE + '/' + link.safe_url
-    link_timemap  = protocol + settings.WARC_HOST + settings.WARC_ROUTE + '/timemap/*/' + link.safe_url
-    response['Memento-Datetime'] = date_header
 
+    # Add memento headers
+    response['Memento-Datetime'] = link.memento_formatted_date
     link_memento_headers = '<{0}>; rel="original"; datetime="{1}",<{2}>; rel="memento"; datetime="{1}",<{3}>; rel="timegate",<{4}>; rel="timemap"; type="application/link-format"'
-    response['Link'] = link_memento_headers.format(link.safe_url, date_header, link_memento, link_timegate, link_timemap)
+    response['Link'] = link_memento_headers.format(link.ascii_safe_url, link.memento_formatted_date, link.memento, link.timegate, link.timemap)
 
     return response
+
 
 def rate_limit(request, exception):
     """
@@ -333,3 +389,26 @@ def contact_thanks(request):
     """
     registrar = Registrar.objects.filter(pk=request.GET.get('registrar', '-1')).first()
     return render(request, 'contact-thanks.html', {'registrar': registrar})
+
+
+def robots_txt(request):
+    """
+    robots.txt
+    """
+    from ..urls import urlpatterns
+
+    disallowed_prefixes = ['errors', 'log', 'manage', 'password', 'register', 'service', 'settings', 'sign-up']
+    allow = []
+    # some urlpatterns do not have names
+    names = [urlpattern.name for urlpattern in urlpatterns if urlpattern.name is not None]
+    for name in names:
+        # urlpatterns that take parameters can't be reversed
+        try:
+            url = reverse(name)
+            disallowed = any(url[1:].startswith(prefix) for prefix in disallowed_prefixes)
+            if not disallowed and url != '/':
+                allow.append(url)
+        except NoReverseMatch:
+            pass
+    disallow = list(Link.GUID_CHARACTER_SET) + disallowed_prefixes
+    return render(request, 'robots.txt', {'allow': allow, 'disallow': disallow}, content_type='text/plain; charset=utf-8')

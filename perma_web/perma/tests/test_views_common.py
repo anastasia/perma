@@ -1,10 +1,10 @@
 from django.conf import settings
 from django.core import mail
 from django.core.urlresolvers import reverse
-from django.test import override_settings
+from django.test import override_settings, Client
 
 from perma.urls import urlpatterns
-from perma.models import Registrar
+from perma.models import Registrar, Link
 
 from .utils import PermaTestCase
 
@@ -53,6 +53,22 @@ class CommonViewsTestCase(PermaTestCase):
             self.log_in_user(user)
             response = self.get('single_linky', reverse_kwargs={'kwargs': {'guid': 'ABCD-0001'}})
             self.assertIn("This record is private.", response.content)
+
+    def test_redirect_to_download(self):
+        # Give user option to download to view pdf if on mobile
+        link = Link.objects.get(pk='7CF8-SS4G')
+        file_url = link.captures.filter(role='primary').get().playback_url_with_access_token()
+
+        client = Client(HTTP_USER_AGENT='Mozilla/5.0 (iPhone; CPU iPhone OS 6_1_4 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10B350 Safari/8536.25')
+        response = client.get(reverse('single_linky', kwargs={'guid': link.guid}))
+        self.assertIn("Perma.cc can\'t display this file type on mobile", response.content)
+        # Make sure that we're including the archived capture url
+        self.assertIn(file_url, response.content)
+
+        # If not on mobile, display link as normal
+        client = Client(HTTP_USER_AGENT='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/601.7.7 (KHTML, like Gecko) Version/9.1.2 Safari/601.7.7')
+        response = client.get(reverse('single_linky', kwargs={'guid': link.guid}))
+        self.assertNotIn("Perma.cc can\'t display this file type on mobile", response.content)
 
     def test_deleted(self):
         response = self.get('single_linky', reverse_kwargs={'kwargs': {'guid': 'ABCD-0003'}})

@@ -988,7 +988,8 @@ class UserManagementViewsTestCase(PermaTestCase):
         rand = random()
         return { 'email': u'library{}@university.org'.format(rand),
                  'name': u'University Library {}'.format(rand),
-                 'website': u'http://website{}.org'.format(rand) }
+                 'website': u'http://website{}.org'.format(rand),
+                 'address': u'{} Main St., Boston MA 02144'.format(rand)}
 
     def new_lib_user(self):
         rand = random()
@@ -1008,18 +1009,21 @@ class UserManagementViewsTestCase(PermaTestCase):
         email_label = soup.find('label', {'for': 'id_a-email'})
         self.assertEqual(email_label.text, "Your email")
 
-    def check_lib_email(self, message, new_lib):
+    def check_lib_email(self, message, new_lib, user):
         our_address = settings.DEFAULT_FROM_EMAIL
 
         self.assertIn(new_lib['name'], message.body)
         self.assertIn(new_lib['email'], message.body)
+
+        self.assertIn(user['email'], message.body)
+
         id = Registrar.objects.get(email=new_lib['email']).id
         approve_url = "http://testserver{}".format(reverse('user_management_approve_pending_registrar', args=[id]))
         self.assertIn(approve_url, message.body)
         self.assertEqual(message.subject, "Perma.cc new library registrar account request")
         self.assertEqual(message.from_email, our_address)
         self.assertEqual(message.recipients(), [our_address])
-        self.assertDictEqual(message.extra_headers, {'Reply-To': new_lib['email']})
+        self.assertDictEqual(message.extra_headers, {'Reply-To': user['email']})
 
     def check_lib_user_email(self, message, new_lib_user):
         our_address = settings.DEFAULT_FROM_EMAIL
@@ -1045,7 +1049,7 @@ class UserManagementViewsTestCase(PermaTestCase):
         self.check_library_labels(soup)
         self.check_lib_user_labels(soup)
         inputs = soup.select('input')
-        self.assertEqual(len(inputs), 7)
+        self.assertEqual(len(inputs), 8)
         for input in inputs:
             if input['name'] == 'csrfmiddlewaretoken':
                 self.assertTrue(input.get('value', ''))
@@ -1060,6 +1064,7 @@ class UserManagementViewsTestCase(PermaTestCase):
         session['request_data'] = { u'b-email': new_lib['email'],
                                     u'b-website': new_lib['website'],
                                     u'b-name': new_lib['name'],
+                                    u'b-address': new_lib['address'],
                                     u'a-email': new_lib_user['email'],
                                     u'a-first_name': new_lib_user['first'],
                                     u'a-last_name': new_lib_user['last'],
@@ -1070,7 +1075,7 @@ class UserManagementViewsTestCase(PermaTestCase):
         self.check_library_labels(soup)
         self.check_lib_user_labels(soup)
         inputs = soup.select('input')
-        self.assertEqual(len(inputs), 7)
+        self.assertEqual(len(inputs), 8)
         for input in inputs:
             if input['name'] == 'csrfmiddlewaretoken':
                 self.assertTrue(input.get('value', ''))
@@ -1093,9 +1098,9 @@ class UserManagementViewsTestCase(PermaTestCase):
         soup = BeautifulSoup(response, 'html.parser')
         self.check_library_labels(soup)
         inputs = soup.select('input')
-        self.assertEqual(len(inputs), 5) # 5 because csrf is here and in the logout form
+        self.assertEqual(len(inputs), 6) # 6 because csrf is here and in the logout form
         for input in inputs:
-            self.assertIn(input['name'],['csrfmiddlewaretoken', 'b-name', 'b-email', 'b-website'])
+            self.assertIn(input['name'],['csrfmiddlewaretoken', 'b-name', 'b-email', 'b-website', 'b-address'])
             if input['name'] == 'csrfmiddlewaretoken':
                 self.assertTrue(input.get('value', ''))
             else:
@@ -1118,7 +1123,7 @@ class UserManagementViewsTestCase(PermaTestCase):
                           success_url=reverse('register_library_instructions'))
         expected_emails_sent += 2
         self.assertEqual(len(mail.outbox), expected_emails_sent)
-        self.check_lib_email(mail.outbox[expected_emails_sent - 2], new_lib)
+        self.check_lib_email(mail.outbox[expected_emails_sent - 2], new_lib, new_lib_user)
         self.check_lib_user_email(mail.outbox[expected_emails_sent - 1], new_lib_user)
 
         # Not logged in, submit all fields including first and last name
@@ -1134,7 +1139,7 @@ class UserManagementViewsTestCase(PermaTestCase):
                           success_url=reverse('register_library_instructions'))
         expected_emails_sent += 2
         self.assertEqual(len(mail.outbox), expected_emails_sent)
-        self.check_lib_email(mail.outbox[expected_emails_sent - 2], new_lib)
+        self.check_lib_email(mail.outbox[expected_emails_sent - 2], new_lib, new_lib_user)
         self.check_lib_user_email(mail.outbox[expected_emails_sent - 1], new_lib_user)
 
         # Logged in
@@ -1148,7 +1153,7 @@ class UserManagementViewsTestCase(PermaTestCase):
                           user=existing_lib_user['email'])
         expected_emails_sent += 1
         self.assertEqual(len(mail.outbox), expected_emails_sent)
-        self.check_lib_email(mail.outbox[expected_emails_sent - 1], new_lib)
+        self.check_lib_email(mail.outbox[expected_emails_sent - 1], new_lib, existing_lib_user)
 
     def test_new_library_submit_failure(self):
         '''
@@ -1327,6 +1332,132 @@ class UserManagementViewsTestCase(PermaTestCase):
                           error_keys = ['email', 'requested_account_note'])
         self.assertEqual(len(mail.outbox), 0)
 
+        ### Firms ###
+
+    def new_firm(self):
+        rand = random()
+        return {'requested_account_note': u'Firm {}'.format(rand)}
+
+    def new_firm_user(self):
+        rand = random()
+        return {'email': u'user{}@university.org'.format(rand),
+                'first': u'Joe',
+                'last': u'Yacobówski'}
+
+    def check_firm_email(self, message, firm_email):
+        our_address = settings.DEFAULT_FROM_EMAIL
+
+        # Doesn't check email contents yet; too many variations possible presently
+        self.assertEqual(message.subject, "Perma.cc new law firm account information request")
+        self.assertEqual(message.from_email, our_address)
+        self.assertEqual(message.recipients(), [our_address])
+        self.assertDictEqual(message.extra_headers, {'Reply-To': firm_email})
+
+    def check_firm_user_email(self, message, new_user):
+        our_address = settings.DEFAULT_FROM_EMAIL
+
+        confirmation_code = LinkUser.objects.get(email=new_user['email']).confirmation_code
+        confirm_url = "http://testserver{}".format(reverse('register_password', args=[confirmation_code]))
+        self.assertIn(confirm_url, message.body)
+        self.assertEqual(message.subject, "A Perma.cc account has been created for you")
+        self.assertEqual(message.from_email, our_address)
+        self.assertEqual(message.recipients(), [new_user['email']])
+
+    def test_new_firm_success(self):
+        '''
+            Does the firm signup form submit as expected? Success cases.
+        '''
+        new_firm = self.new_firm()
+        new_user = self.new_firm_user()
+        existing_user = {'email': 'test_user@example.com'}
+        another_existing_user = {'email': 'another_library_user@example.com'}
+        expected_emails_sent = 0
+
+        # NOT LOGGED IN
+
+        # Existing user's email address, no court info
+        # (currently succeeds, should probably fail; see issue 1746)
+        self.submit_form('sign_up_firm',
+                         data={'email': existing_user['email']},
+                         success_url=reverse('firm_request_response'))
+        expected_emails_sent += 1
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], existing_user['email'])
+
+        # Existing user's email address + firm info
+        self.submit_form('sign_up_firm',
+                         data={'email': existing_user['email'],
+                               'requested_account_note': new_firm['requested_account_note']},
+                         success_url=reverse('firm_request_response'))
+        expected_emails_sent += 1
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], existing_user['email'])
+
+        # New user email address, don't create account
+        self.submit_form('sign_up_firm',
+                         data={'email': new_user['email'],
+                               'requested_account_note': new_firm['requested_account_note']},
+                         success_url=reverse('firm_request_response'))
+        expected_emails_sent += 1
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], new_user['email'])
+
+        # New user email address, create account
+        self.submit_form('sign_up_firm',
+                         data={'email': new_user['email'],
+                               'requested_account_note': new_firm['requested_account_note'],
+                               'create_account': True},
+                         success_url=reverse('register_email_instructions'))
+        expected_emails_sent += 2
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_user_email(mail.outbox[expected_emails_sent - 2], new_user)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], new_user['email'])
+
+        # LOGGED IN
+
+        # New user email address
+        # (This succeeds and creates a new account; see issue 1749)
+        new_user = self.new_firm_user()
+        self.submit_form('sign_up_firm',
+                         data={'email': new_user['email'],
+                               'requested_account_note': new_firm['requested_account_note'],
+                               'create_account': True},
+                         user=existing_user['email'],
+                         success_url=reverse('register_email_instructions'))
+        expected_emails_sent += 2
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_user_email(mail.outbox[expected_emails_sent - 2], new_user)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], new_user['email'])
+
+        # Existing user's email address, not that of the user logged in.
+        # (This is odd; see issue 1749)
+        self.submit_form('sign_up_firm',
+                         data={'email': existing_user['email'],
+                               'requested_account_note': new_firm['requested_account_note'],
+                               'create_account': True},
+                         user=another_existing_user['email'],
+                         success_url=reverse('firm_request_response'))
+        expected_emails_sent += 1
+        self.assertEqual(len(mail.outbox), expected_emails_sent)
+        self.check_firm_email(mail.outbox[expected_emails_sent - 1], existing_user['email'])
+
+    def test_new_firm_failure(self):
+        '''
+            Does the firm signup form submit as expected? Failure cases.
+        '''
+        # Not logged in, blank submission reports correct fields required
+        self.submit_form('sign_up_firm',
+                         data={},
+                         error_keys=['email', 'requested_account_note'])
+        self.assertEqual(len(mail.outbox), 0)
+
+        # Logged in, blank submission reports same fields required
+        # (This is odd; see issue 1749)
+        self.submit_form('sign_up_firm',
+                         data={},
+                         user='test_user@example.com',
+                         error_keys=['email', 'requested_account_note'])
+        self.assertEqual(len(mail.outbox), 0)
 
     ### Journals ###
 

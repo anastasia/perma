@@ -7,6 +7,9 @@ from django.conf import settings
 from fabric.context_managers import shell_env
 from fabric.decorators import task
 from fabric.operations import local
+from fabric.contrib.console import confirm
+from fabric.api import abort
+
 
 from perma.tests.utils import reset_failed_test_files_folder
 
@@ -52,7 +55,7 @@ def run_ssl(port="0.0.0.0:8000"):
     """
     local("python manage.py runsslserver %s" % port)
 
-_default_tests = "perma api api2 functional_tests lockss"
+_default_tests = "perma api functional_tests lockss"
 
 @task
 def test(apps=_default_tests):
@@ -65,21 +68,13 @@ def test(apps=_default_tests):
 @task
 def test_python(apps=_default_tests):
     """ Run Python tests. """
-    excluded_files = [
-        "*/migrations/*",
-        "*/management/*",
-        "*/tests/*",
-        "fabfile/*",
-        "functional_tests/*",
-        "*/settings/*",
-    ]
 
     # In order to run functional_tests, we have to run collectstatic, since functional tests use DEBUG=False
     # For speed we use the default Django STATICFILES_STORAGE setting here, which also has to be set in settings_testing.py
     if "functional_tests" in apps and not os.environ.get('SERVER_URL'):
         local("DJANGO__STATICFILES_STORAGE=django.contrib.staticfiles.storage.StaticFilesStorage python manage.py collectstatic --noinput")
 
-    local("coverage run --source='.' --omit='%s' manage.py test %s" % (",".join(excluded_files), apps))
+    local("coverage run manage.py test --settings perma.settings.deployments.settings_testing %s" % (apps))
 
 @task
 def test_js():
@@ -110,7 +105,7 @@ def sauce_tunnel():
         Set up Sauce tunnel before running functional tests targeted at localhost.
     """
     if subprocess.call(['which','sc']) == 1: # error return code -- program not found
-        sys.exit("Please check that the `sc` program is installed and in your path. To install: https://docs.saucelabs.com/reference/sauce-connect/")
+        sys.exit("Please check that the `sc` program is installed and in your path. To install: https://wiki.saucelabs.com/display/DOCS/Sauce+Connect+Proxy")
     local("sc -u %s -k %s" % (settings.SAUCE_USERNAME, settings.SAUCE_ACCESS_KEY))
 
 
@@ -128,6 +123,22 @@ def init_db():
     local("python manage.py migrate --database=perma-cdxline")
     local("python manage.py loaddata fixtures/sites.json fixtures/users.json fixtures/folders.json")
 
+@task
+def reset_hard_db():
+    """
+        Drops the perma and perma_cdxline databases and creates and inits them again
+        Let folks run this if they're not in Django's debug mode
+    """
+
+    if not settings.DEBUG:
+        abort("Django's settings.DEBUG is set to False. You might be running in produciton. Do not use this method!")
+
+    if not confirm("WARNING! You're about to drop the Perma.cc DBs. Continue anyway?"):
+        abort("No DBs dropped. Aborted.")
+
+    local("mysql -uroot -p -e 'drop database perma; create database perma character set utf8;'")
+    local("mysql -uroot -p -e 'drop database perma_cdxline; create database perma_cdxline character set utf8;'")
+    init_db()
 
 @task
 def screenshots(base_url='http://perma.dev:8000'):
@@ -721,3 +732,27 @@ def md5hash(path, storage):
                 break
             m.update(buf)
         return m.hexdigest()
+
+
+@task
+def update_cloudflare_cache():
+    """ Update Cloudflare IP lists. """
+    import requests
+    for ip_filename in ('ips-v4', 'ips-v6'):
+        with open(os.path.join(settings.CLOUDFLARE_DIR, ip_filename), 'w') as ip_file:
+            ip_file.write(requests.get('https://www.cloudflare.com/%s' % ip_filename).text)
+
+
+@task
+def test_db_connection(connection):
+    """
+    Open a database connection.
+    Use this task repeatedly, possibly with different database connection settings,
+    e.g. in order to flush out a transient SSL connection problem, something like:
+    while [ 1 ] ; do date ; fab dev.test_db_connection:some-connection ; sleep 1 ; done
+    """
+    from django.db import connections
+    print("Attempting connection to %s ..." % connection)
+    cursor = connections[connection].cursor()
+    print("Succeeded.")
+    cursor.close()

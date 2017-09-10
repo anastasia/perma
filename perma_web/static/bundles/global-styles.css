@@ -8371,6 +8371,10 @@ a.cc:active {
   background-color: #222;
 }
 
+.stats-container a {
+  text-decoration: underline;
+}
+
 .style-container-padding,
 .cont-full,
 .cont-fixed {
@@ -8646,6 +8650,17 @@ a.cc:active {
 @media only screen and (min-width: 990px) {
   .col-sm-by5 {
     width: 20%;
+    float: left;
+  }
+}
+
+.col-sm-by6 {
+  width: 100%;
+}
+
+@media only screen and (min-width: 990px) {
+  .col-sm-by6 {
+    width: 16.66666667%;
     float: left;
   }
 }
@@ -9505,7 +9520,6 @@ body.modal-open {
 }
 
 .carousel {
-  margin: 48px 0 0;
   text-align: center;
 }
 

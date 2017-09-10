@@ -9,7 +9,6 @@ from django.http import HttpResponseBadRequest
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 from ratelimit.decorators import ratelimit
-from tastypie.models import ApiKey
 
 from django.views.generic import UpdateView
 from django.conf import settings
@@ -30,22 +29,22 @@ from django.contrib import messages
 
 from perma.forms import (
     RegistrarForm,
+    LibraryRegistrarForm,
     OrganizationWithRegistrarForm,
     OrganizationForm,
     UserForm,
     UserFormWithRegistrar,
     UserFormWithOrganization,
     CreateUserFormWithCourt,
+    CreateUserFormWithFirm,
     CreateUserFormWithUniversity,
     UserAddRegistrarForm,
     UserAddOrganizationForm,
     UserFormWithAdmin,
     UserAddAdminForm)
-from perma.models import Registrar, LinkUser, Organization, Link, Capture, CaptureJob
-from perma.utils import apply_search_query, apply_pagination, apply_sort_order, \
-   get_form_data, ratelimit_ip_key, user_passes_test_or_403
+from perma.models import Registrar, LinkUser, Organization, Link, Capture, CaptureJob, ApiKey
+from perma.utils import apply_search_query, apply_pagination, apply_sort_order, get_form_data, ratelimit_ip_key, get_lat_long, user_passes_test_or_403
 from perma.email import send_admin_email, send_user_email
-
 
 logger = logging.getLogger(__name__)
 valid_member_sorts = ['last_name', '-last_name', 'date_joined', '-date_joined', 'last_login', '-last_login', 'link_count', '-link_count']
@@ -141,6 +140,7 @@ def stats(request, stat_type=None):
             'private_meta_failure': Link.objects.filter(is_private=True, private_reason='failure').count(),
             'links_w_meta_failure_tag': Link.objects.filter(tags__name__in=['meta-tag-retrieval-failure']).count(),
             'links_w_timeout_failure_tag': Link.objects.filter(tags__name__in=['timeout-failure']).count(),
+            'links_w_browser_crashed_tag': Link.objects.filter(tags__name__in=['browser-crashed']).count(),
             'total_user_count': LinkUser.objects.count(),
             'unconfirmed_user_count': LinkUser.objects.filter(is_confirmed=False).count()
         }
@@ -155,6 +155,7 @@ def stats(request, stat_type=None):
         out['private_meta_failure_percentage_of_private'] = round(100.0*out['private_meta_failure']/out['private_link_count'], 1) if out['private_link_count'] else 0
         out['tagged_meta_failure_percentage_of_total'] = round(100.0*out['links_w_meta_failure_tag']/out['total_link_count'], 1) if out['total_link_count'] else 0
         out['tagged_timeout_failure_percentage_of_total'] = round(100.0*out['links_w_timeout_failure_tag']/out['total_link_count'], 1) if out['total_link_count'] else 0
+        out['tagged_browser_crashed_percentage_of_total'] = round(100.0*out['links_w_browser_crashed_tag']/out['total_link_count'], 1) if out['total_link_count'] else 0
 
         out['unconfirmed_user_percentage'] = round(100.0*out['unconfirmed_user_count']/out['total_user_count'], 1) if out['total_user_count'] else 0
 
@@ -201,7 +202,7 @@ def stats(request, stat_type=None):
 @user_passes_test_or_403(lambda user: user.is_staff)
 def manage_registrar(request):
     """
-    Linky admins can manage registrars (libraries)
+    Perma admins can manage registrars (libraries)
     """
 
     # handle creation of new registrars
@@ -272,7 +273,7 @@ def manage_single_registrar(request, registrar_id):
     return render(request, 'user_management/manage_single_registrar.html', {
         'target_registrar': target_registrar,
         'this_page': 'users_registrars',
-        'form': form,
+        'form': form
     })
 
 
@@ -1186,10 +1187,7 @@ def libraries(request):
     Info for libraries, allow them to request accounts
     """
     if request.method == 'POST':
-        registrar_form = RegistrarForm(request.POST, prefix = "b")
-        registrar_form.fields['name'].label = "Library name"
-        registrar_form.fields['email'].label = "Library email"
-        registrar_form.fields['website'].label = "Library website"
+        registrar_form = LibraryRegistrarForm(request.POST, request.FILES, prefix ="b")
         if request.user.is_authenticated():
             user_form = None
         else:
@@ -1214,9 +1212,17 @@ def libraries(request):
         if form_is_valid:
             new_registrar = registrar_form.save()
             email_registrar_request(request, new_registrar)
+            address = registrar_form.cleaned_data.get('address', '')
+            if address:
+                try:
+                    (lat, lng) = get_lat_long(address)
+                    new_registrar.latitude = lat
+                    new_registrar.longitude = lng
+                    new_registrar.save(update_fields=["latitude", "longitude"])
+                except TypeError:
+                    pass
             if user_form:
                 new_user = user_form.save(commit=False)
-                new_user.backend='django.contrib.auth.backends.ModelBackend'
                 new_user.pending_registrar = new_registrar
                 new_user.save()
                 email_pending_registrar_user(request, new_user)
@@ -1229,15 +1235,12 @@ def libraries(request):
         request_data = request.session.get('request_data','')
         user_form = None
         if not request.user.is_authenticated():
-            user_form = UserForm(prefix = "a")
+            user_form = UserForm(prefix="a")
             user_form.fields['email'].label = "Your email"
         if request_data:
-            registrar_form = RegistrarForm(request_data, prefix = "b")
+            registrar_form = LibraryRegistrarForm(request_data, prefix="b")
         else:
-            registrar_form = RegistrarForm(prefix = "b")
-        registrar_form.fields['name'].label = "Library name"
-        registrar_form.fields['email'].label = "Library email"
-        registrar_form.fields['website'].label = "Library website"
+            registrar_form = LibraryRegistrarForm(prefix="b")
 
     return render(request, "registration/sign-up-libraries.html",
         {'user_form':user_form, 'registrar_form':registrar_form})
@@ -1250,12 +1253,8 @@ def sign_up(request):
     if request.method == 'POST':
         form = UserForm(request.POST)
         if form.is_valid():
-            new_user = form.save(commit=False)
-            new_user.backend='django.contrib.auth.backends.ModelBackend'
-            new_user.save()
-
+            new_user = form.save()
             email_new_user(request, new_user)
-
             return HttpResponseRedirect(reverse('register_email_instructions'))
     else:
         form = UserForm()
@@ -1323,6 +1322,45 @@ def sign_up_faculty(request):
         form = CreateUserFormWithUniversity()
 
     return render(request, "registration/sign-up-faculty.html", {'form': form})
+
+@ratelimit(rate=settings.REGISTER_MINUTE_LIMIT, block=True, key=ratelimit_ip_key)
+def sign_up_firm(request):
+    """
+    Register a new law firm user
+    """
+    if request.method == 'POST':
+        form = CreateUserFormWithFirm(request.POST)
+        user_email = request.POST.get('email', None)
+        try:
+            target_user = LinkUser.objects.get(email=user_email)
+        except LinkUser.DoesNotExist:
+            target_user = None
+        if target_user:
+            requested_account_note = request.POST.get('requested_account_note', None)
+            target_user.requested_account_type = 'firm'
+            target_user.requested_account_note = requested_account_note
+            target_user.save()
+            email_firm_request(request, target_user)
+            return HttpResponseRedirect(reverse('firm_request_response'))
+
+        if form.is_valid():
+            new_user = form.save(commit=False)
+            new_user.requested_account_type = 'firm'
+            create_account = request.POST.get('create_account', None)
+            if create_account:
+                new_user.save()
+                email_new_user(request, new_user)
+                email_firm_request(request, new_user)
+                messages.add_message(request, messages.INFO, "We will shortly follow up with more information about how Perma.cc could work in your firm.")
+                return HttpResponseRedirect(reverse('register_email_instructions'))
+            else:
+                email_firm_request(request, new_user)
+                return HttpResponseRedirect(reverse('firm_request_response'))
+
+    else:
+        form = CreateUserFormWithFirm()
+
+    return render(request, "registration/sign-up-firms.html", {'form': form})
 
 
 @ratelimit(rate=settings.REGISTER_MINUTE_LIMIT, block=True, key=ratelimit_ip_key)
@@ -1393,6 +1431,12 @@ def court_request_response(request):
     """
     return render(request, 'registration/court_request.html')
 
+def firm_request_response(request):
+    """
+    After the user has requested info about a firm account
+    """
+    return render(request, 'registration/firm_request.html')
+
 
 def email_new_user(request, user):
     """
@@ -1440,14 +1484,21 @@ def email_registrar_request(request, pending_registrar):
     Send email to Perma.cc admins when a library requests an account
     """
     host = request.get_host()
+    try:
+        email = request.user.email
+    except AttributeError:
+        # User did not have an account
+        email = request.POST.get('a-email')
+
     send_admin_email(
         "Perma.cc new library registrar account request",
-        pending_registrar.email,
+        email,
         request,
         'email/admin/registrar_request.txt',
         {
             "name": pending_registrar.name,
             "email": pending_registrar.email,
+            "requested_by_email": email,
             "host": host,
             "confirmation_route": reverse('user_management_approve_pending_registrar', args=[pending_registrar.id])
         }
@@ -1486,6 +1537,27 @@ def email_court_request(request, court):
             "first_name": court.first_name,
             "last_name": court.last_name,
             "court_name": court.requested_account_note,
+            "has_account": target_user
+        }
+    )
+
+def email_firm_request(request, firm):
+    """
+    Send email to Perma.cc admins when a firm requests an account
+    """
+    try:
+        target_user = LinkUser.objects.get(email=firm.email)
+    except LinkUser.DoesNotExist:
+        target_user = None
+    send_admin_email(
+        "Perma.cc new law firm account information request",
+        firm.email,
+        request,
+        "email/admin/firm_request.txt",
+        {
+            "first_name": firm.first_name,
+            "last_name": firm.last_name,
+            "firm_name": firm.requested_account_note,
             "has_account": target_user
         }
     )

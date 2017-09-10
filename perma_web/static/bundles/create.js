@@ -466,7 +466,7 @@ webpackJsonp([3],{
 /***/ 80:
 /***/ function(module, exports, __webpack_require__) {
 
-	exports.f = __webpack_require__(1162);
+	exports.f = __webpack_require__(356);
 
 /***/ },
 
@@ -495,28 +495,28 @@ webpackJsonp([3],{
 	// ECMAScript 6 symbols shim
 	var global         = __webpack_require__(40)
 	  , has            = __webpack_require__(54)
-	  , DESCRIPTORS    = __webpack_require__(1159)
+	  , DESCRIPTORS    = __webpack_require__(353)
 	  , $export        = __webpack_require__(39)
 	  , redefine       = __webpack_require__(53)
 	  , META           = __webpack_require__(84).KEY
 	  , $fails         = __webpack_require__(49)
-	  , shared         = __webpack_require__(1153)
+	  , shared         = __webpack_require__(347)
 	  , setToStringTag = __webpack_require__(72)
 	  , uid            = __webpack_require__(69)
-	  , wks            = __webpack_require__(1162)
+	  , wks            = __webpack_require__(356)
 	  , wksExt         = __webpack_require__(80)
 	  , wksDefine      = __webpack_require__(85)
 	  , keyOf          = __webpack_require__(86)
 	  , enumKeys       = __webpack_require__(87)
 	  , isArray        = __webpack_require__(90)
-	  , anObject       = __webpack_require__(1157)
+	  , anObject       = __webpack_require__(351)
 	  , toIObject      = __webpack_require__(61)
-	  , toPrimitive    = __webpack_require__(1161)
+	  , toPrimitive    = __webpack_require__(355)
 	  , createDesc     = __webpack_require__(52)
 	  , _create        = __webpack_require__(57)
 	  , gOPNExt        = __webpack_require__(91)
 	  , $GOPD          = __webpack_require__(93)
-	  , $DP            = __webpack_require__(1156)
+	  , $DP            = __webpack_require__(350)
 	  , $keys          = __webpack_require__(59)
 	  , gOPD           = $GOPD.f
 	  , dP             = $DP.f
@@ -719,7 +719,7 @@ webpackJsonp([3],{
 	});
 	
 	// 19.4.3.4 Symbol.prototype[@@toPrimitive](hint)
-	$Symbol[PROTOTYPE][TO_PRIMITIVE] || __webpack_require__(1155)($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
+	$Symbol[PROTOTYPE][TO_PRIMITIVE] || __webpack_require__(349)($Symbol[PROTOTYPE], TO_PRIMITIVE, $Symbol[PROTOTYPE].valueOf);
 	// 19.4.3.5 Symbol.prototype[@@toStringTag]
 	setToStringTag($Symbol, 'Symbol');
 	// 20.2.1.9 Math[@@toStringTag]
@@ -735,7 +735,7 @@ webpackJsonp([3],{
 	var META     = __webpack_require__(69)('meta')
 	  , isObject = __webpack_require__(46)
 	  , has      = __webpack_require__(54)
-	  , setDesc  = __webpack_require__(1156).f
+	  , setDesc  = __webpack_require__(350).f
 	  , id       = 0;
 	var isExtensible = Object.isExtensible || function(){
 	  return true;
@@ -795,7 +795,7 @@ webpackJsonp([3],{
 	  , core           = __webpack_require__(29)
 	  , LIBRARY        = __webpack_require__(38)
 	  , wksExt         = __webpack_require__(80)
-	  , defineProperty = __webpack_require__(1156).f;
+	  , defineProperty = __webpack_require__(350).f;
 	module.exports = function(name){
 	  var $Symbol = core.Symbol || (core.Symbol = LIBRARY ? {} : global.Symbol || {});
 	  if(name.charAt(0) != '_' && !(name in $Symbol))defineProperty($Symbol, name, {value: wksExt.f(name)});
@@ -910,12 +910,12 @@ webpackJsonp([3],{
 	var pIE            = __webpack_require__(89)
 	  , createDesc     = __webpack_require__(52)
 	  , toIObject      = __webpack_require__(61)
-	  , toPrimitive    = __webpack_require__(1161)
+	  , toPrimitive    = __webpack_require__(355)
 	  , has            = __webpack_require__(54)
-	  , IE8_DOM_DEFINE = __webpack_require__(1158)
+	  , IE8_DOM_DEFINE = __webpack_require__(352)
 	  , gOPD           = Object.getOwnPropertyDescriptor;
 	
-	exports.f = __webpack_require__(1159) ? gOPD : function getOwnPropertyDescriptor(O, P){
+	exports.f = __webpack_require__(353) ? gOPD : function getOwnPropertyDescriptor(O, P){
 	  O = toIObject(O);
 	  P = toPrimitive(P, true);
 	  if(IE8_DOM_DEFINE)try {
@@ -1655,9 +1655,19 @@ webpackJsonp([3],{
 	  if (Date.now() < Date.parse(link.archive_timestamp)) {
 	    link.delete_available = true;
 	  }
-	  if (!link.captures.some(function (c) {
-	    return c.role == "primary" && c.status == "success" || c.role == "screenshot" && c.role == "success";
-	  })) {
+	  // mark the capture as failed if both the primary and the screenshot capture failed.
+	  // (ignore if the favicon capture failed)
+	  var primary_failed = false;
+	  var screenshot_failed = false;
+	  link.captures.forEach(function (c) {
+	    if (c.role == "primary" && c.status == "failed") {
+	      primary_failed = true;
+	    }
+	    if (c.role == "screenshot" && c.status == "failed") {
+	      screenshot_failed = true;
+	    }
+	  });
+	  if (primary_failed && screenshot_failed) {
 	    link.is_failed = true;
 	  };
 	  return link;
@@ -10583,31 +10593,31 @@ webpackJsonp([3],{
 29,
 
 /***/ 131:
-[1168, 132, 140, 136],
+[362, 132, 140, 136],
 
 /***/ 132:
-[1169, 133, 135, 139, 136],
+[363, 133, 135, 139, 136],
 
 /***/ 133:
-[1170, 134],
+[364, 134],
 
 /***/ 134:
 46,
 
 /***/ 135:
-[1171, 136, 137, 138],
+[365, 136, 137, 138],
 
 /***/ 136:
-[1172, 137],
+[366, 137],
 
 /***/ 137:
 49,
 
 /***/ 138:
-[1173, 134, 129],
+[367, 134, 129],
 
 /***/ 139:
-[1174, 134],
+[368, 134],
 
 /***/ 140:
 52,
@@ -10657,7 +10667,7 @@ webpackJsonp([3],{
 69,
 
 /***/ 144:
-[1167, 145],
+[361, 145],
 
 /***/ 145:
 42,
@@ -10713,19 +10723,19 @@ webpackJsonp([3],{
 /***/ },
 
 /***/ 147:
-[1164, 148],
+[358, 148],
 
 /***/ 148:
 63,
 
 /***/ 149:
-[1163, 150],
+[357, 150],
 
 /***/ 150:
 36,
 
 /***/ 151:
-[1165, 152],
+[359, 152],
 
 /***/ 152:
 35,
@@ -10768,10 +10778,10 @@ webpackJsonp([3],{
 [330, 148],
 
 /***/ 156:
-[1175, 157, 143, 129],
+[369, 157, 143, 129],
 
 /***/ 157:
-[1166, 129],
+[360, 129],
 
 /***/ 158:
 /***/ function(module, exports, __webpack_require__) {
@@ -10846,15 +10856,17 @@ webpackJsonp([3],{
 	  // archive is still be generated)
 	  // Clear any error messages out
 	  DOMHelpers.removeElement('.error-row');
-	
 	  newGUID = data.guid;
-	
 	  refreshIntervalIds.push(setInterval(check_status, 2000));
 	}
 	
 	function linkNot(jqXHR) {
-	  // The API told us something went wrong.
-	  var message = APIModule.getErrorMessage(jqXHR);
+	  if (typeof jqXHR == 'undefined') {
+	    var message = "Capture Failed";
+	  } else {
+	    // The API told us something went wrong.
+	    var message = APIModule.getErrorMessage(jqXHR);
+	  }
 	
 	  var upload_allowed = true;
 	  if (message.indexOf("limit") > -1) {
@@ -10872,6 +10884,7 @@ webpackJsonp([3],{
 	
 	  $('.create-errors').addClass('_active');
 	  $('#error-container').hide().fadeIn(0);
+	  $('#error-container').removeClass('_hide');
 	
 	  toggleCreateAvailable();
 	}
@@ -10900,9 +10913,6 @@ webpackJsonp([3],{
 	  $('.has-error').removeClass('has-error');
 	
 	  if (response) {
-	    // Can be removed when Tastypie API no longer used
-	    if (response.archives) response = response.archives;
-	
 	    // If error message comes in as {file:"message",url:"message"},
 	    // show appropriate error message next to each field.
 	    for (var key in response) {
@@ -11000,16 +11010,9 @@ webpackJsonp([3],{
 	      // If we succeeded, forward to the new archive
 	      if (data.status == "completed") {
 	        window.location.href = "/" + newGUID;
-	
-	        // Else show failure message and reset form.
 	      } else {
-	        var templateArgs = { message: "Error: URL capture failed." };
-	        changeTemplate('#error-template', templateArgs, '#error-container');
-	
-	        $('#error-container').removeClass('_hide _success _wait').addClass('_error');
-	
-	        // Toggle our create button
-	        toggleCreateAvailable();
+	        // Else show failure message and reset form.
+	        linkNot();
 	      }
 	    }
 	  });

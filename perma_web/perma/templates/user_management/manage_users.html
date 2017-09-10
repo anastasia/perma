@@ -87,8 +87,8 @@
               <a {% if sort == '-last_login' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="-last_login" %}"><i class="icon-ok"></i> Recently active</a>
               <a {% if sort == 'last_login' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="last_login" %}"><i class="icon-ok"></i> Least recently active</a>
               {% if group_name == 'organization_user' %}
-                <a {% if sort == '-created_links_count' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="-created_links_count" %}"><i class="icon-ok"></i> Most links</a>
-                <a {% if sort == 'created_links_count' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="created_links_count" %}"><i class="icon-ok"></i> Least links</a>
+                <a {% if sort == '-link_count' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="-link_count" %}"><i class="icon-ok"></i> Most links</a>
+                <a {% if sort == 'link_count' %}class="selected" {% endif %} href="?{% current_query_string page='' sort="link_count" %}"><i class="icon-ok"></i> Least links</a>
               {% endif %}
             </li>
           </ul>
@@ -102,6 +102,7 @@
                 <a {% if upgrade == 'court' %}class="selected" {% endif %}href="?{% current_query_string page='' upgrade="court" %}"><i class="icon-ok"></i> Court</a>
                 <a {% if upgrade == 'faculty' %}class="selected" {% endif %}href="?{% current_query_string page='' upgrade="faculty" %}"><i class="icon-ok"></i> Faculty</a>
                 <a {% if upgrade == 'journal' %}class="selected" {% endif %}href="?{% current_query_string page='' upgrade="journal" %}"><i class="icon-ok"></i> Journal</a>
+                <a {% if upgrade == 'firm' %}class="selected" {% endif %}href="?{% current_query_string page='' upgrade="firm" %}"><i class="icon-ok"></i> Firm</a>
               </li>
             </ul>
           </div>

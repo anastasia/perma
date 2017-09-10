@@ -40,6 +40,7 @@ urlpatterns = [
     url(r'^service/stats/sums/?$', service.stats_sums, name='service_stats_sums'),
     url(r'^service/stats/now/?$', service.stats_now, name='service_stats_now'),
     url(r'^service/bookmarklet-create/$', service.bookmarklet_create, name='service_bookmarklet_create'),
+    url(r'^service/get-coordinates/?$', service.coordinates_from_address, name='service_coordinates_from_address'),
     #url(r'^service/thumbnail/%s/thumbnail.png$' % guid_pattern, service.get_thumbnail, name='service_get_thumbnail'),
 
     # Session/account management
@@ -57,12 +58,14 @@ urlpatterns = [
     url(r'^sign-up/courts/?$', user_management.sign_up_courts, name='sign_up_courts'),
     url(r'^sign-up/faculty/?$', user_management.sign_up_faculty, name='sign_up_faculty'),
     url(r'^sign-up/journals/?$', user_management.sign_up_journals, name='sign_up_journals'),
+    url(r'^sign-up/firms/?$', user_management.sign_up_firm, name='sign_up_firm'),
     url(r'^libraries/?$', user_management.libraries, name='libraries'),
     #url(r'^register/confirm/(?P<code>\w+)/$', user_management.register_email_code_confirmation, name='confirm_register'),
     url(r'^register/password/(?P<code>\w+)/$', user_management.register_email_code_password, name='register_password'),
     url(r'^register/email/?$', user_management.register_email_instructions, name='register_email_instructions'),
     url(r'^register/library/?$', user_management.register_library_instructions, name='register_library_instructions'),
     url(r'^register/court/?$', user_management.court_request_response, name='court_request_response'),
+    url(r'^register/firm/?$', user_management.firm_request_response, name='firm_request_response'),
     url(r'^password/change/?$', auth_views.password_change, {'template_name': 'registration/password_change_form.html'}, name='password_change'),
     url(r'^password/change/done/?$', auth_views.password_change_done, {'template_name': 'registration/password_change_done.html'},   name='password_change_done'),
     url(r'^password/reset/?$', user_management.reset_password, name='password_reset'),
@@ -133,6 +136,9 @@ urlpatterns = [
     url(r'^errors/new?$', error_management.post_new, name='error_management_post_new'),
     # Our Perma ID catchall
     url(r'^%s/?$' % r'(?P<guid>[^\./]+)', common.single_linky, name='single_linky'),
+
+    # robots.txt
+    url(r'^robots\.txt$', common.robots_txt, name='robots.txt'),
 ]
 
 # debug-only serving of media assets

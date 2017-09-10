@@ -719,6 +719,10 @@ a.cc {
   }
 }
 
+.stats-container a {
+  text-decoration: underline;
+}
+
 /////////////////////////////////////////
 
 // Container, Row, Column
@@ -912,6 +916,14 @@ div.col-right {
   width: 100%;
   @include respond-desktop {
     width: 100 / 5 * 1%;
+    float: left;
+  }
+}
+
+.col-sm-by6 {
+  width: 100%;
+  @include respond-desktop {
+    width: 100 / 6 * 1%;
     float: left;
   }
 }
@@ -1608,7 +1620,6 @@ body.modal-open {
 // Carousel
 
 .carousel {
-  margin: $grid * 6 0 0;
   text-align: center;
   .carousel-inner {
     height: $grid * 16;

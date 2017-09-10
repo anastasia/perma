@@ -4,7 +4,6 @@ import os
 
 DEBUG = True
 WARC_HOST = 'perma-archives.dev:8000'
-SERVICES_DIR = os.path.abspath(os.path.join(PROJECT_ROOT, '../services'))
 
 # logging
 LOGGING_DIR = os.path.join(SERVICES_DIR, 'logs')
@@ -68,7 +67,3 @@ except ImportError:
 # Our Sorl thumbnail stuff. In prod we use Redis, we'll just use
 # the local uncached DB here in dev.
 THUMBNAIL_KVSTORE = 'sorl.thumbnail.kvstores.cached_db_kvstore.KVStore'
-
-# If running testing, import setting overrides
-if 'test' in sys.argv:
-    from settings_testing import *

@@ -40,3 +40,17 @@ def post_new(request):
         user=None if request.user.is_anonymous() else request.user)
     error.save()
     return HttpResponse(status=200)
+
+def csrf_failure(request, reason="CSRF Failure."):
+    '''
+        Custom view for CSRF failures, required for proper rendering of
+        our custom template.
+    '''
+    return render(request, '403_csrf.html')
+
+def server_error(request):
+    '''
+        Custom view for 500 failures, required for proper rendering of
+        our custom template.
+    '''
+    return render(request, '500.html')

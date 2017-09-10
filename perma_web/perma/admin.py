@@ -27,11 +27,11 @@ class LinkInline(admin.TabularInline):
 
 class RegistrarAdmin(SimpleHistoryAdmin):
     search_fields = ['name', 'email', 'website']
-    list_display = ['name', 'status', 'email', 'website', 'show_partner_status', 'partner_display_name', 'logo', 'latitude', 'longitude', 'registrar_users', 'last_active', 'orgs_count', 'link_count', 'tag_list']
-    list_editable = ['show_partner_status', 'partner_display_name', 'latitude', 'longitude', 'status']
+    list_display = ['name', 'status', 'email', 'website', 'show_partner_status', 'partner_display_name', 'logo', 'address', 'latitude', 'longitude', 'registrar_users', 'last_active', 'orgs_count', 'link_count', 'tag_list']
+    list_editable = ['show_partner_status', 'partner_display_name', 'address','latitude', 'longitude', 'status']
     fieldsets = (
         (None, {'fields': ('name', 'email', 'website', 'status', 'tags')}),
-        ("Partner Display", {'fields': ('show_partner_status', 'partner_display_name', 'logo', 'latitude', 'longitude')}),
+        ("Partner Display", {'fields': ('show_partner_status', 'partner_display_name', 'logo', 'address', 'latitude', 'longitude')}),
     )
     inlines = [
         new_class("OrganizationInline", InlineEditLinkMixin, admin.TabularInline, model=Organization,
@@ -140,8 +140,8 @@ class LinkUserAdmin(UserAdmin):
 
 
 class LinkAdmin(SimpleHistoryAdmin):
-    list_display = ['guid', 'submitted_url', 'submitted_title', 'submitted_description', 'created_by', 'creation_timestamp','user_deleted']
-    search_fields = ['guid', 'submitted_url', 'submitted_title', 'submitted_description']
+    list_display = ['guid', 'submitted_url', 'created_by', 'creation_timestamp', 'tag_list', 'is_private', 'user_deleted']
+    search_fields = ['guid', 'submitted_url', 'tags__name']
     fieldsets = (
         (None, {'fields': ('guid', 'submitted_url', 'submitted_title', 'submitted_description', 'created_by', 'creation_timestamp', 'warc_size', 'replacement_link', 'tags')}),
         ('Visibility', {'fields': ('is_private', 'private_reason', 'is_unlisted',)}),
@@ -154,13 +154,20 @@ class LinkAdmin(SimpleHistoryAdmin):
         new_class("CaptureInline", admin.TabularInline, model=Capture,
                   fields=['role', 'status', 'url', 'content_type', 'record_type', 'user_upload'],
                   can_delete=False),
+        new_class("CaptureJobInline", admin.StackedInline, model=CaptureJob,
+                   fields=['status', 'step_count', 'step_description', 'human'],
+                   readonly_fields=['step_count', 'step_description', 'human'],
+                   can_delete=False)
     ]
     raw_id_fields = ['created_by','replacement_link']
 
     def get_queryset(self, request):
-        qs = super(LinkAdmin, self).get_queryset(request).select_related('created_by',)
+        qs = super(LinkAdmin, self).get_queryset(request).select_related('created_by',).prefetch_related('tags', 'capture_job')
         qs.query.where = WhereNode()  # reset filters to include "deleted" objs
         return qs
+
+    def tag_list(self, obj):
+        return u", ".join(o.name for o in obj.tags.all())
 
 
 class FolderAdmin(MPTTModelAdmin):

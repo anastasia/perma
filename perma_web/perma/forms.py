@@ -50,6 +50,32 @@ class RegistrarForm(ModelForm):
         model = Registrar
         fields = ['name', 'email', 'website']
 
+
+class LibraryRegistrarForm(ModelForm):
+    class Meta:
+        model = Registrar
+        fields = ['name', 'email', 'website', 'address']  #, 'logo', 'show_partner_status']
+
+    def __init__(self, *args, **kwargs):
+        super(LibraryRegistrarForm, self).__init__(*args, **kwargs)
+        self.fields['name'].label = "Library name"
+        self.fields['email'].label = "Library email"
+        self.fields['website'].label = "Library website"
+        self.fields['address'].label = "Library physical address"
+        # self.fields['logo'].label = "Library/University logo"
+        # # If you change here, please also change in clean_logo below
+        # self.fields['logo'].widget.attrs['accept'] = ".png,.jpg,.jpeg,.gif"
+        # self.fields['show_partner_status'].label = "Display us in the list of Perma.cc partners"
+        # self.fields['show_partner_status'].initial = True
+
+    # def clean(self):
+    #     logo = self.cleaned_data['logo']
+    #     if not logo or imghdr.what(logo) not in ['png', 'jpg', 'gif']:
+    #         if self.cleaned_data.get('show_partner', None):
+    #           msg = "Please include a logo (.png, .jpg, .gif)."
+    #           self.add_error('logo', msg)
+    #     return logo
+
 ### ORGANIZATION FORMS ###
 
 class OrganizationWithRegistrarForm(ModelForm):
@@ -119,6 +145,24 @@ class CreateUserFormWithCourt(UserForm):
     def __init__(self, *args, **kwargs):
         super(CreateUserFormWithCourt, self).__init__(*args, **kwargs)
         self.fields['requested_account_note'].label = "Your court"
+        self.fields['first_name'].label = "Your first name"
+        self.fields['last_name'].label = "Your last name"
+        self.fields['email'].label = "Your email"
+
+class CreateUserFormWithFirm(UserForm):
+    """
+    add firm to the create user form
+    """
+
+    requested_account_note = forms.CharField(required=True)
+
+    class Meta:
+        model = LinkUser
+        fields = ["first_name", "last_name", "email", "requested_account_note"]
+
+    def __init__(self, *args, **kwargs):
+        super(CreateUserFormWithFirm, self).__init__(*args, **kwargs)
+        self.fields['requested_account_note'].label = "Your firm"
         self.fields['first_name'].label = "Your first name"
         self.fields['last_name'].label = "Your last name"
         self.fields['email'].label = "Your email"

@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import os
 import logging
 import random
@@ -12,6 +13,10 @@ import simple_history
 import requests
 import itertools
 import time
+import hmac
+import uuid
+from time import mktime
+from wsgiref.handlers import format_date_time
 
 from hanzo import warctools
 from mptt.managers import TreeManager
@@ -40,7 +45,7 @@ from pywb.warc.cdxindexer import write_cdx_index
 from taggit.managers import TaggableManager
 from taggit.models import CommonGenericTaggedItemBase, TaggedItemBase
 
-from .utils import copy_file_data, tz_datetime
+from .utils import copy_file_data, tz_datetime, protocol
 
 
 logger = logging.getLogger(__name__)
@@ -132,6 +137,7 @@ class Registrar(models.Model):
     show_partner_status = models.BooleanField(default=False, help_text="Whether to show this registrar in our list of partners.")
     partner_display_name = models.CharField(max_length=400, blank=True, null=True, help_text="Optional. Use this to override 'name' for the partner list.")
     logo = models.ImageField(upload_to='registrar_logos', blank=True, null=True)
+    address = models.CharField(max_length=500, blank=True, null=True)
     latitude = models.FloatField(blank=True, null=True)
     longitude = models.FloatField(blank=True, null=True)
     link_count = models.IntegerField(default=0) # A cache of the number of links under this registrars's purview (sum of all associated org links)
@@ -371,9 +377,9 @@ class LinkUser(AbstractBaseUser):
         self.root_folder = root_folder
         self.save()
 
-    def as_json(self, request=None):
-        from api.resources import CurrentUserResource
-        return CurrentUserResource().as_json(self, request)
+    def as_json(self):
+        from api.serializers import LinkUserSerializer  # local import to avoid circular import
+        return json.dumps(LinkUserSerializer(self).data)
 
     ### permissions ###
 
@@ -479,6 +485,29 @@ class LinkUser(AbstractBaseUser):
 
     def can_edit_organization(self, organization):
         return self.organizations.filter(pk=organization.pk).exists()
+
+
+class ApiKey(models.Model):
+    """
+        Based on tastypie.models: https://github.com/django-tastypie/django-tastypie/blob/master/tastypie/models.py#L35
+    """
+    user = models.OneToOneField(LinkUser, related_name='api_key')
+    key = models.CharField(max_length=128, blank=True, default='', db_index=True)
+    created = models.DateTimeField(default=timezone.now)
+
+    def __unicode__(self):
+        return u"%s for %s" % (self.key, self.user)
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        return super(ApiKey, self).save(*args, **kwargs)
+
+    def generate_key(self):
+        # Get a random UUID.
+        new_uuid = uuid.uuid4()
+        # Hmac that beast.
+        return hmac.new(new_uuid.bytes, digestmod=hashlib.sha1).hexdigest()
 
 
 # special history tracking for custom user object -- see http://django-simple-history.readthedocs.org/en/latest/reference.html
@@ -639,6 +668,7 @@ class Link(DeletableModel):
     This is the core of the Perma link.
     """
     guid = models.CharField(max_length=255, null=False, blank=False, primary_key=True, editable=False)
+    GUID_CHARACTER_SET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
     submitted_url = models.URLField(max_length=2100, null=False, blank=False)
     creation_timestamp = models.DateTimeField(default=timezone.now, editable=False)
     submitted_title = models.CharField(max_length=2100, null=False, blank=False)
@@ -670,13 +700,13 @@ class Link(DeletableModel):
     tags = TaggableManager(through=GenericStringTaggedItem, blank=True)
 
     @cached_property
-    def safe_url(self):
+    def ascii_safe_url(self):
         """ Encoded URL as string rather than unicode. """
         return iri_to_uri(self.submitted_url)
 
     @cached_property
     def url_details(self):
-        return urlparse(self.safe_url)
+        return urlparse(self.ascii_safe_url)
 
     @cached_property
     def ip(self):
@@ -689,7 +719,7 @@ class Link(DeletableModel):
     def headers(self):
         try:
             return requests.get(
-                self.safe_url,
+                self.ascii_safe_url,
                 verify=False,  # don't check SSL cert?
                 headers={'User-Agent': settings.CAPTURE_USER_AGENT, 'Accept-Encoding': '*'},
                 timeout=HEADER_CHECK_TIMEOUT,
@@ -697,6 +727,35 @@ class Link(DeletableModel):
             ).headers
         except (requests.ConnectionError, requests.Timeout):
             return False
+
+
+    # header values for memento: https://mementoweb.org/guide/rfc/
+
+    @cached_property
+    def memento(self):
+        """
+        http://perma.dev:8000/23W3-NDSB
+        """
+        return protocol() + settings.HOST + '/' + self.guid
+
+    @cached_property
+    def timegate(self):
+        """
+        http://perma-archives.dev:8000/warc/timegate/http://example.com
+        """
+        return protocol() + settings.WARC_HOST + settings.TIMEGATE_WARC_ROUTE + '/' + self.ascii_safe_url
+
+    @cached_property
+    def timemap(self):
+        """
+        http://perma-archives.dev:8000/warc/timemap/*/http://example.com
+        """
+        return protocol() + settings.WARC_HOST + settings.WARC_ROUTE + '/timemap/*/' + self.ascii_safe_url
+
+    @cached_property
+    def memento_formatted_date(self):
+        return format_date_time(mktime(self.creation_timestamp.timetuple()))
+
 
     def save(self, *args, **kwargs):
         # Set a default title if one is missing
@@ -716,10 +775,9 @@ class Link(DeletableModel):
                 # only try 100 attempts at finding an unused GUID
                 # (100 attempts should never be necessary, since we'll expand the keyspace long before
                 # there are frequent collisions)
-                guid_character_set = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
                 for i in range(100):
                     # Generate an 8-character random string like "1A2B3C4D"
-                    guid = ''.join(random.choice(guid_character_set) for _ in range(8))
+                    guid = ''.join(random.choice(self.GUID_CHARACTER_SET) for _ in range(8))
 
                     # apply standard formatting (hyphens)
                     guid = Link.get_canonical_guid(guid)
@@ -790,10 +848,6 @@ class Link(DeletableModel):
     def can_upload_to_internet_archive(self):
         """ Return True if this link is appropriate for upload to IA. """
         return self.is_discoverable()
-
-    def as_json(self, request=None):
-        from api.resources import LinkResource
-        return LinkResource().as_json(self, request)
 
     def guid_as_path(self):
         # For a GUID like ABCD-1234, return a path like AB/CD/12.
@@ -942,7 +996,7 @@ class Link(DeletableModel):
         """
             Given a file uploaded by a user, create a Capture record and warc.
         """
-        from api2.utils import get_mime_type, mime_type_lookup  # local import to avoid circular import
+        from api.utils import get_mime_type, mime_type_lookup  # local import to avoid circular import
 
         # normalize file name to upload.jpg, upload.png, upload.gif, or upload.pdf
         mime_type = get_mime_type(uploaded_file.name)
@@ -1233,6 +1287,11 @@ class CaptureJob(models.Model):
 
         return queue_position
 
+    def inc_progress(self, inc, description):
+        self.step_count = int(self.step_count) + inc
+        self.step_description = description
+        self.save(update_fields=['step_count', 'step_description'])
+
     def mark_completed(self, status='completed'):
         """
             Record completion time and status for this job.
@@ -1285,14 +1344,13 @@ class CDXLineManager(models.Manager):
             write_cdx_index(cdx_io, warc_file, warc_path)
             cdx_io.seek(0)
             next(cdx_io) # first line is a header so skip it
-            results = []
+            lines = []
             for line in cdx_io:
-                cdxline = CDXLine.objects.get_or_create(raw=line, link_id=link.guid)[0]
-                cdxline.is_unlisted = link.is_unlisted
-                cdxline.is_private = link.is_private
-                cdxline.save()
-                results.append(cdxline)
-
+                lines.append(CDXLine(raw=line, link_id=link.guid, is_unlisted=link.is_unlisted, is_private=link.is_private))
+            # Delete any existing rows to reduce the likelihood of a race condition,
+            # if someone hits the link before the capture process has written the CDXLine db.
+            CDXLine.objects.filter(link_id=link.guid).delete()
+            results = CDXLine.objects.bulk_create(lines)
         return results
 
 

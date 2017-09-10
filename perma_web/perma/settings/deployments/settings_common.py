@@ -8,10 +8,13 @@ this_module = unicode(
     sys.executable if hasattr(sys, "frozen") else __file__,
     sys.getfilesystemencoding())
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(this_module))))
+SERVICES_DIR = os.path.abspath(os.path.join(PROJECT_ROOT, '../services'))
 
 # make sure mysql uses innodb and utf8
 _mysql_connection_options = {
-    "init_command": "SET storage_engine=INNODB; SET NAMES 'utf8';",
+    "init_command": "SET default_storage_engine=INNODB; SET NAMES 'utf8';",
+    # for mysql 5.7+, use:
+    # "init_command": "SET default_storage_engine=INNODB; SET NAMES 'utf8';",
     "charset": "utf8",
 }
 
@@ -136,6 +139,7 @@ MIDDLEWARE_CLASSES = (
 )
 
 RATELIMIT_VIEW = 'perma.views.common.rate_limit'
+CSRF_FAILURE_VIEW = 'perma.views.error_management.csrf_failure'
 
 ROOT_URLCONF = 'urls'
 
@@ -157,7 +161,6 @@ INSTALLED_APPS = (
 
     # our apps
     'perma',
-    'api',
     'lockss',
     'compare',
 
@@ -171,13 +174,12 @@ INSTALLED_APPS = (
     'webpack_loader',  # track frontend assets
 
     # api
-    'api2',
+    'api',
     'rest_framework',
     'django_filters',
 
     # django admin -- has to come after our apps for our admin template overrides to work
     'django.contrib.admin',
-    'tastypie'
 )
 
 AUTH_USER_MODEL = 'perma.LinkUser'
@@ -271,8 +273,15 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': True
         },
+        'warcprox': {
+            'level': 'WARNING'
+        },
+        'requests' : {
+            'level': 'WARNING'
+        }
     }
 }
+LOG_PLAYBACK_404 = False
 
 # IP ranges we won't archive.
 # Via http://en.wikipedia.org/wiki/Reserved_IP_addresses
@@ -314,7 +323,8 @@ BANNED_IP_RANGES = [
 # TRUSTED_PROXIES should be a list of reverse proxies in the chain, where each proxy is a whitelist of IP ranges
 # for that proxy. Proxies should be in order from client to server. For example, given:
 
-#    TRUSTED_PROXIES = [['<cloudflare range>', '<cloudflare range>'], ['<nginx server ip>']]
+#    from .utils.helpers import get_cloudflare_ips
+#    TRUSTED_PROXIES = [get_cloudflare_ips(CLOUDFLARE_DIR), ['<nginx server ip>']]
 
 # if we see a request like:
 
@@ -325,6 +335,7 @@ BANNED_IP_RANGES = [
 # fail to match, wsgi.py will return a 400 Bad Request.
 
 TRUSTED_PROXIES = []
+CLOUDFLARE_DIR = os.path.join(SERVICES_DIR, 'cloudflare')
 
 # Http header we will use to determine/test/validate a client's IP address.
 CLIENT_IP_HEADER = 'REMOTE_ADDR'
@@ -335,8 +346,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_SEND_TASK_ERROR_EMAILS = True
-CELERYD_TASK_TIME_LIMIT = 300     # If a task is running longer than five minutes, kill it
-CELERYD_TASK_SOFT_TIME_LIMIT=290  # provide 10 seconds to catch SoftTimeLimitExceeded
+# If a task is running longer than five minutes, ask it to shut down
+CELERYD_TASK_SOFT_TIME_LIMIT=300
+# If a task is running longer than seven minutes, kill it
+CELERYD_TASK_TIME_LIMIT = 420
 
 # Control whether Celery tasks should be run in the background or during a request.
 # This should normally be True, but it's handy to not require rabbitmq and celery sometimes.
@@ -394,16 +407,7 @@ CAPTURE_BROWSER = 'PhantomJS'  # or 'Chrome' or 'Firefox'
 # Default user agent is the Chrome on Linux that's most like PhantomJS 2.1.1.
 CAPTURE_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.37 Safari/537.36"
 
-### Tastypie
-# http://django-tastypie.readthedocs.org/en/latest/settings.html
-
-TASTYPIE_ALLOW_MISSING_SLASH = True
 APPEND_SLASH = False
-
-TASTYPIE_DEFAULT_FORMATS = ['json']
-
-TASTYPIE_FULL_DEBUG = True  # Better Tastypie error handling for debugging. Only has an effect when DEBUG=True.
-
 
 # Schedule celerybeat jobs.
 # These will be added to CELERYBEAT_SCHEDULE in settings.utils.post_processing
@@ -429,6 +433,7 @@ USE_LOCKSS_REPLAY = False  # whether to replay captures from LOCKSS, if servers 
 LOCKSS_CONTENT_IPS = ""  # IPs of Perma servers allowed to play back LOCKSS content -- e.g. "10.1.146.0/24;140.247.209.64"
 LOCKSS_CRAWL_INTERVAL = "12h"
 LOCKSS_QUORUM = 3
+LOCKSS_DEBUG_IPS = False
 
 CELERY_ROUTES = {
     'perma.tasks.upload_to_internet_archive': {'queue': 'background'},
@@ -472,7 +477,7 @@ PRIVATE_LINKS_ON_FAILURE = False
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'api2.authentication.TokenAuthentication',  # authenticate with ApiKey token
+        'api.authentication.TokenAuthentication',  # authenticate with ApiKey token
         'rest_framework.authentication.SessionAuthentication',  # authenticate with Django login
     ),
     'NON_FIELD_ERRORS_KEY': 'error',  # default key for {'fieldname': 'error message'} error responses
@@ -485,3 +490,8 @@ REST_FRAMEWORK = {
 # for rest framework -- cause django_filters to raise exceptions for malformed filters so our API can return them to the user
 from django_filters import STRICTNESS
 FILTERS_STRICTNESS = STRICTNESS.RAISE_VALIDATION_ERROR
+
+
+# If using geocoding
+# Via https://console.developers.google.com/apis/api/geocoding_backend/overview
+GEOCODING_KEY = None

@@ -1,4 +1,4 @@
-from settings_dev import PROJECT_ROOT
+from ..__init__ import *
 
 #########
 # Setup #
