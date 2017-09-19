@@ -7,15 +7,14 @@ from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.core.urlresolvers import reverse
 from django.http import JsonResponse
-from django.conf import settings
 
 from compare.models import *
 from compare.models import Compare
 import compare.utils as utils
 
 from perma.models import Link
-from htmldiff import diff
-from htmldiff import settings as diff_settings
+from htmldiffer import diff
+from htmldiffer import settings as diff_settings
 from warc_compare import WARCCompare, utils as wc_utils
 
 @login_required
@@ -60,32 +59,33 @@ def capture_compare(request, old_guid, new_guid):
         new_warc_path = os.path.join(default_storage.base_location, new_archive.warc_storage_file())
         wc = WARCCompare(old_warc_path, new_warc_path)
 
-        if not utils.compare_dir_exists(old_guid, new_guid):
-            """
-            create new comparison directory for these two guids
-            """
-            utils.create_compare_dir(old_guid, new_guid)
+        # if not utils.compare_dir_exists(old_guid, new_guid):
+        """
+        create new comparison directory for these two guids
+        """
+        utils.create_compare_dir(old_guid, new_guid)
 
-            html_one = old_archive.replay_url(old_archive.submitted_url).data
-            html_two = new_archive.replay_url(new_archive.submitted_url).data
+        html_one = old_archive.replay_url(old_archive.submitted_url).data
+        html_two = new_archive.replay_url(new_archive.submitted_url).data
 
-            rewritten_html_one = utils.rewrite_html(html_one, old_archive.guid)
-            rewritten_html_two = utils.rewrite_html(html_two, new_archive.guid)
+        rewritten_html_one = utils.rewrite_html(html_one, old_archive.guid)
+        rewritten_html_two = utils.rewrite_html(html_two, new_archive.guid)
 
-            # ignore guids in html
-            diff_settings.EXCLUDE_STRINGS_A.append(str(old_guid))
-            diff_settings.EXCLUDE_STRINGS_B.append(str(new_guid))
+        # ignore guids in html
+        diff_settings.EXCLUDE_STRINGS_A.append(str(old_guid))
+        # diff_settings.EXCLUDE_STRINGS_A.append(str(old_guid))
+        diff_settings.EXCLUDE_STRINGS_B.append(str(new_guid))
 
-            # add own style string
-            diff_settings.STYLE_STR = settings.DIFF_STYLE_STR
+        # add own style string
+        diff_settings.STYLE_STR = settings.DIFF_STYLE_STR
 
-            deleted, inserted, combined = diff.text_diff(rewritten_html_one, rewritten_html_two)
+        diffed = diff.HTMLDiffer(rewritten_html_one, rewritten_html_two)
 
-            # TODO: change all '/' in url to '_' to save
-
-            utils.write_to_static(deleted, 'deleted.html', old_guid, new_guid)
-            utils.write_to_static(inserted, 'inserted.html', old_guid, new_guid)
-            utils.write_to_static(combined, 'combined.html', old_guid, new_guid)
+        # TODO: change all '/' in url to '_' to save
+        import ipdb; ipdb.set_trace()
+        utils.write_to_static(diffed.deleted_diff, 'deleted.html', old_guid, new_guid)
+        utils.write_to_static(diffed.inserted_diff, 'inserted.html', old_guid, new_guid)
+        utils.write_to_static(diffed.combined_diff, 'combined.html', old_guid, new_guid)
 
         total_count, unchanged_count, missing_count, added_count, modified_count = wc.count_resources()
         resources = []

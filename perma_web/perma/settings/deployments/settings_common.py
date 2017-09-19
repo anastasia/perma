@@ -1,6 +1,8 @@
 # Core settings used by all deployments.
 
 import os, sys
+# import django
+# django.setup()
 
 # PROJECT_ROOT is the absolute path to the perma_web folder
 # We determine this robustly thanks to http://stackoverflow.com/a/2632297
@@ -163,6 +165,7 @@ INSTALLED_APPS = (
     'perma',
     'lockss',
     'compare',
+
 
     # third party apps
     'ratelimit',

@@ -45,20 +45,12 @@
 /***/ 0:
 /***/ function(module, exports, __webpack_require__) {
 
-<<<<<<< HEAD
-	module.exports = __webpack_require__(219);
-=======
-	module.exports = __webpack_require__(199);
->>>>>>> 2d364ed9d33fbde3218ba17a607d35401a99c289
+	module.exports = __webpack_require__(200);
 
 
 /***/ },
 
-<<<<<<< HEAD
-/***/ 219:
-=======
-/***/ 199:
->>>>>>> 2d364ed9d33fbde3218ba17a607d35401a99c289
+/***/ 200:
 /***/ function(module, exports) {
 
 	"use strict";
