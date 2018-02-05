@@ -23,7 +23,6 @@ module.exports = {
     'create': './static/js/create',
     'link-delete-confirm': './static/js/link-delete-confirm',
     'developer-docs': './static/js/developer-docs',
-    'search': './static/js/search.module',
     'stats': './static/js/stats',
     'admin-stats': './static/js/admin-stats',
   },
